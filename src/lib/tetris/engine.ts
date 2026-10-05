@@ -391,11 +391,13 @@ export function consumeItem(state: GameState, slot: number): GameState {
   const items = [...state.items];
   items.splice(slot, 1);
 
-  // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 내려올 수 있다.
-  // 그대로 두면 collides(board, active) 가 참이 되어 다음 낙하/고정에서 보드가 깨지므로,
-  // 충돌이 사라질 때까지 활성 블록을 위로 밀어 올려 유효한 위치를 찾는다.
+  // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 내려와 충돌할 수 있다.
+  // 이 재배치/ top-out 판정은 "아이템 붕괴가 실제로 활성 블록과 충돌을 만든 경우"에만 수행한다.
+  // (월킥 등으로 블록 일부가 보드 위 y<0 에 걸쳐 있는 합법적 상태는 그대로 두어야 한다.
+  //  그런 블록은 정상적으로 다시 내려올 수 있으므로 거짓 top-out 을 만들면 안 된다.)
   let active = state.active;
-  if (active) {
+  if (active && collides(board, active)) {
+    // 충돌이 사라질 때까지 활성 블록을 위로 밀어 올려 유효한 위치를 찾는다.
     let guard = 0;
     while (collides(board, active) && guard < TOTAL_HEIGHT) {
       active = { ...active, y: active.y - 1 };

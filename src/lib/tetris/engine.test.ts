@@ -309,4 +309,27 @@ describe("items", () => {
     expect(used.active).toBeNull();
     expect(used.items).toHaveLength(0); // 아이템은 소비됨
   });
+
+  it("아이템이 블록과 충돌을 만들지 않으면(합법적 y<0 포함) top-out 하지 않는다", () => {
+    const base = createInitialState(seededRng(5));
+    const board = createEmptyBoard();
+    const bottom = TOTAL_HEIGHT - 1;
+    // 아래쪽에 소거 대상 줄(가득 찬 줄)만 만들어 둔다 — 블록과는 무관한 위치
+    for (let x = 0; x < BOARD_WIDTH; x++) board[bottom][x] = "I" as PieceType;
+    // 블록 일부가 보드 위(y<0)에 걸쳐 있지만 충돌하지 않는 합법적 상태
+    const active: ActivePiece = { type: "T", rotation: 0, x: 3, y: -1 };
+    expect(collides(board, active)).toBe(false);
+    const state = {
+      ...base,
+      board,
+      active,
+      phase: "playing" as const,
+      items: ["clearLine"] as ItemType[],
+    };
+    const used = consumeItem(state, 0);
+    // 무관한 아래 줄만 지워지고, 블록은 그대로 유지되며 게임은 계속된다
+    expect(used.phase).toBe("playing");
+    expect(used.active).toEqual(active);
+    expect(used.items).toHaveLength(0);
+  });
 });
