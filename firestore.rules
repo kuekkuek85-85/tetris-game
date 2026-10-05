@@ -1,0 +1,46 @@
+rules_version = '2';
+
+// 테트리스 교실 — Firestore 보안 규칙
+// 원칙(PRD 7절): 쓰기는 본인 기록만, 리더보드는 읽기 전용, 최소 수집.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 공용 유효성 검사 헬퍼
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidScore(data) {
+      return data.score is int && data.score >= 0
+        && data.lines is int && data.lines >= 0
+        && data.level is int && data.level >= 1
+        && data.durationMs is int && data.durationMs >= 0
+        && data.nickname is string && data.nickname.size() <= 12;
+    }
+
+    // players: 문서 ID = 본인 uid. 본인만 생성/수정, 읽기는 로그인 사용자 허용(리더보드/대시보드).
+    match /players/{uid} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() <= 12;
+      allow delete: if false; // 삭제는 교사(관리자 콘솔/함수)에서만
+    }
+
+    // games: 본인 uid 로만 생성. 수정·삭제는 금지(기록 불변), 읽기는 로그인 사용자 허용.
+    match /games/{gameId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && isValidScore(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // classes(선택): 읽기 전용. 쓰기는 관리자 콘솔/함수에서만.
+    match /classes/{classId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+  }
+}
