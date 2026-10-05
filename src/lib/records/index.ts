@@ -54,11 +54,29 @@ export function hasInFlightSaves(): boolean {
   return inFlightSaves > 0;
 }
 
+// 학생 전환이 진행되는 "전체 구간" 동안 새 저장을 막는 락.
+// (전환 중 게임오버로 새 saveGame 이 이전 UID 로 시작되면 로그아웃 후 복구 불가 기록이 됨)
+let switching = false;
+
+/** 전환 시작: 이후 saveGame 은 저장하지 않고 거부된다. */
+export function beginStudentSwitch(): void {
+  switching = true;
+}
+
+/** 전환 종료(성공/실패 무관): 저장을 다시 허용한다. */
+export function endStudentSwitch(): void {
+  switching = false;
+}
+
 /**
  * 게임 기록 저장. Firestore 저장은 고정 게임 ID 로 최대 3회 지수 백오프 재시도(멱등).
  * 모두 실패하면 로컬 대기 큐에 보관(수업 중 데이터 유실 방지)하고, 이후 재전송을 시도한다.
  */
 export async function saveGame(input: SaveGameInput): Promise<SaveResult> {
+  // 학생 전환 중에는 새 저장을 받지 않는다(이전 학생 UID 로 기록이 남아 유실되는 것을 방지).
+  if (switching) {
+    return { ok: false, fallback: false, error: "학생 전환 중에는 저장할 수 없어요." };
+  }
   inFlightSaves += 1;
   try {
     const db = getDb();
