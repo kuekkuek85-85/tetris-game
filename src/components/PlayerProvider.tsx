@@ -11,11 +11,13 @@ import {
 } from "react";
 import { ensureAnonymousUid, signOutAnonymous } from "@/lib/firebase/auth";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
-import { flushPending, hasPendingRecords } from "@/lib/records";
+import { flushPending, hasInFlightSaves, hasPendingRecords } from "@/lib/records";
 import { localRebindPending } from "@/lib/records/localStore";
 
 /** 전환 실패 사유 — 아직 전송되지 못한 대기 기록이 남아 있음 */
 export const SWITCH_ERR_PENDING = "PENDING_NOT_EMPTY";
+/** 전환 실패 사유 — 아직 진행 중인 저장이 있음 */
+export const SWITCH_ERR_SAVING = "SAVE_IN_FLIGHT";
 import {
   clearProfile,
   loadProfile,
@@ -70,6 +72,11 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchStudent = useCallback(async () => {
+    // 0) 진행 중인 저장이 있으면 전환을 막는다. 저장 재시도가 끝나기 전에 로그아웃하면
+    //    그 저장이 복구 불가한 이전 UID 로 기록을 남겨 유실되므로, 저장 완료 후 재시도하게 한다.
+    if (hasInFlightSaves()) {
+      throw new Error(SWITCH_ERR_SAVING);
+    }
     // 1) 이전 학생의 대기 기록을 "아직 그 학생으로 인증된 상태에서" 먼저 전송한다.
     //    (전환 후에는 그 UID 로 다시 인증할 수 없어 전송·귀속이 영구 불가능)
     if (uid) {

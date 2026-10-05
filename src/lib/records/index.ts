@@ -45,41 +45,55 @@ function isRealUid(uid: string | null | undefined): uid is string {
   return !!uid && !uid.startsWith("local-");
 }
 
+// 진행 중인 saveGame 수. 학생 전환을 "저장 완료 후"로 직렬화하기 위해 추적한다.
+// (저장 재시도가 끝나기 전에 로그아웃하면 그 재시도가 복구 불가한 이전 UID 로 기록을 남겨 유실됨)
+let inFlightSaves = 0;
+
+/** 아직 완료되지 않은 저장 작업이 있는지. (학생 전환 안전성 판단용) */
+export function hasInFlightSaves(): boolean {
+  return inFlightSaves > 0;
+}
+
 /**
  * 게임 기록 저장. Firestore 저장은 고정 게임 ID 로 최대 3회 지수 백오프 재시도(멱등).
  * 모두 실패하면 로컬 대기 큐에 보관(수업 중 데이터 유실 방지)하고, 이후 재전송을 시도한다.
  */
 export async function saveGame(input: SaveGameInput): Promise<SaveResult> {
-  const db = getDb();
-  if (!db) {
-    const { ok } = localSaveGame(input);
-    return { ok, fallback: true, error: ok ? undefined : "로컬 저장에 실패했습니다." };
-  }
+  inFlightSaves += 1;
+  try {
+    const db = getDb();
+    if (!db) {
+      const { ok } = localSaveGame(input);
+      return { ok, fallback: true, error: ok ? undefined : "로컬 저장에 실패했습니다." };
+    }
 
-  const gameId = genId();
-  const delays = [500, 1500, 3000];
-  let lastError = "";
-  for (let attempt = 0; attempt <= delays.length; attempt++) {
-    try {
-      await fsSaveGame(db, input, gameId);
-      // 저장 성공 시 밀려 있던 대기 기록도 현재 uid 로 재전송해 본다
-      void flushPending(input.uid);
-      return { ok: true, fallback: false };
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      if (attempt < delays.length) {
-        await sleep(delays[attempt]);
+    const gameId = genId();
+    const delays = [500, 1500, 3000];
+    let lastError = "";
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        await fsSaveGame(db, input, gameId);
+        // 저장 성공 시 밀려 있던 대기 기록도 현재 uid 로 재전송해 본다
+        void flushPending(input.uid);
+        return { ok: true, fallback: false };
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        if (attempt < delays.length) {
+          await sleep(delays[attempt]);
+        }
       }
     }
-  }
 
-  // Firestore 저장 최종 실패 → 로컬 대기 큐 보관
-  const { ok } = localAddPending(input);
-  return {
-    ok,
-    fallback: true,
-    error: ok ? lastError : "서버·로컬 저장에 모두 실패했습니다.",
-  };
+    // Firestore 저장 최종 실패 → 로컬 대기 큐 보관
+    const { ok } = localAddPending(input);
+    return {
+      ok,
+      fallback: true,
+      error: ok ? lastError : "서버·로컬 저장에 모두 실패했습니다.",
+    };
+  } finally {
+    inFlightSaves -= 1;
+  }
 }
 
 /**
