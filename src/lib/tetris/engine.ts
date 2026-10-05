@@ -391,15 +391,21 @@ export function consumeItem(state: GameState, slot: number): GameState {
   const items = [...state.items];
   items.splice(slot, 1);
 
-  // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 올라올 수 있다.
+  // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 내려올 수 있다.
   // 그대로 두면 collides(board, active) 가 참이 되어 다음 낙하/고정에서 보드가 깨지므로,
-  // 충돌이 사라질 때까지 활성 블록을 위로 밀어 올려 유효한 위치로 되돌린다.
+  // 충돌이 사라질 때까지 활성 블록을 위로 밀어 올려 유효한 위치를 찾는다.
   let active = state.active;
   if (active) {
     let guard = 0;
     while (collides(board, active) && guard < TOTAL_HEIGHT) {
       active = { ...active, y: active.y - 1 };
       guard += 1;
+    }
+    // 위로 밀어도 블록 일부가 보드 위(y<0)로 벗어나면 보드에 완전히 재진입할 수 없다.
+    // (붕괴 후 꼭대기까지 들어찬 경우) 이때는 손상 상태를 남기지 않도록 top-out 으로 처리한다.
+    const fullyOnBoard = getPieceCells(active).every(([, y]) => y >= 0);
+    if (collides(board, active) || !fullyOnBoard) {
+      return { ...state, board, items, active: null, phase: "gameover" };
     }
   }
 

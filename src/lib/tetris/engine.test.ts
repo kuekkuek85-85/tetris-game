@@ -279,4 +279,34 @@ describe("items", () => {
     expect(used.active).not.toBeNull();
     expect(collides(used.board, used.active!)).toBe(false);
   });
+
+  it("붕괴 후 블록이 보드에 완전히 재진입할 수 없으면 top-out 처리한다", () => {
+    const base = createInitialState(seededRng(4));
+    const board = createEmptyBoard();
+    // 세로 I(4칸)를 보드 바닥에 두고, 그 위 열(col3)을 가득 채운다.
+    const holeX = 3; // 세로 I 셀 열 = x+2
+    const active: ActivePiece = { type: "I", rotation: 1, x: 1, y: TOTAL_HEIGHT - 4 };
+    for (let y = 0; y < TOTAL_HEIGHT; y++) {
+      for (let x = 0; x < BOARD_WIDTH; x++) {
+        // col3 의 바닥 4칸(블록 자리)만 비워 두고 나머지는 모두 채운다
+        const isPieceCol = x === holeX;
+        const isPieceRow = y >= TOTAL_HEIGHT - 4;
+        board[y][x] = isPieceCol && isPieceRow ? (0 as Cell) : ("I" as PieceType);
+      }
+    }
+    // 시작 상태는 유효(블록 열의 바닥 4칸이 비어 있음)
+    expect(collides(board, active)).toBe(false);
+    const state = {
+      ...base,
+      board,
+      active,
+      phase: "playing" as const,
+      items: ["bomb"] as ItemType[],
+    };
+    // 폭탄으로 바닥 2줄을 지우면 꼭대기 2줄만 비므로 4칸짜리 세로 I 는 재진입 불가 → top-out
+    const used = consumeItem(state, 0);
+    expect(used.phase).toBe("gameover");
+    expect(used.active).toBeNull();
+    expect(used.items).toHaveLength(0); // 아이템은 소비됨
+  });
 });
