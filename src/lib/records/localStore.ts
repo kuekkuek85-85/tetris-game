@@ -178,3 +178,23 @@ export function localRemovePending(ids: string[]): void {
   const list = read<PendingGame[]>(PENDING_KEY, []).filter((p) => !remove.has(p.id));
   write(PENDING_KEY, list);
 }
+
+/**
+ * 대기 기록의 uid 를 인증된 uid 로 재바인딩한다.
+ * (익명 인증 복구 후, 읽기 병합이 새 uid 기준으로 즉시 일치하도록)
+ * 변경이 있었으면 true 를 반환.
+ */
+export function localRebindPending(toUid: string): boolean {
+  const list = read<PendingGame[]>(PENDING_KEY, []);
+  if (list.length === 0) return false;
+  let changed = false;
+  const next = list.map((p) => {
+    if (p.uid !== toUid) {
+      changed = true;
+      return { ...p, uid: toUid };
+    }
+    return p;
+  });
+  if (changed) write(PENDING_KEY, next);
+  return changed;
+}

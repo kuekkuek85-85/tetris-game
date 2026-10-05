@@ -169,24 +169,6 @@ export async function fsGetMyGames(
   return snap.docs.map((doc) => mapGame(doc.id, doc.data()));
 }
 
-export async function fsGetLeaderboard(
-  db: Firestore,
-  classId: string | null,
-  max = 50,
-): Promise<GameRecord[]> {
-  const base = collection(db, GAMES);
-  const q = classId
-    ? query(
-        base,
-        where("classId", "==", classId),
-        orderBy("score", "desc"),
-        fsLimit(max),
-      )
-    : query(base, orderBy("score", "desc"), fsLimit(max));
-  const snap = await getDocs(q);
-  return snap.docs.map((doc) => mapGame(doc.id, doc.data()));
-}
-
 /**
  * 교사용 통계를 위해 games 컬렉션 전체를 playedAt 내림차순으로 페이지네이션하여 가져온다.
  * (점수순 상위 N개만 가져오면 통계가 왜곡되므로 시간순으로 모두 수집한다.)

@@ -7,7 +7,6 @@ import { getDb, isFirebaseConfigured } from "@/lib/firebase/config";
 import type { GameRecord, PlayerAggregate, SaveGameInput } from "./types";
 import {
   fsGetAllGames,
-  fsGetLeaderboard,
   fsGetMyGames,
   fsGetPlayer,
   fsSaveGame,
@@ -158,19 +157,31 @@ function bestPerUid(games: GameRecord[]): GameRecord[] {
   );
 }
 
-/** 리더보드/순위 계산용으로 games 를 모은다(원격+대기 또는 로컬+대기 병합). */
-async function collectGames(classId: string | null, max: number): Promise<GameRecord[]> {
+/**
+ * games 전체를 병합해 가져온다(원격 전체 페이지네이션 + 대기, 또는 로컬 + 대기).
+ * 점수순 상위 N개로 자르지 않으므로, 저득점 플레이어가 집계에서 누락되지 않는다.
+ * classId 가 주어지면 해당 반으로 필터링한다.
+ */
+async function collectAllGames(classId: string | null): Promise<GameRecord[]> {
   const db = getDb();
   const classFilter = (p: PendingGame) => (classId ? p.classId === classId : true);
+  const byClass = (g: GameRecord) => (classId ? g.classId === classId : true);
+
+  let base: GameRecord[];
   if (!db) {
-    return localGetLeaderboard(classId, max);
+    base = localGetLeaderboard(classId, 100000);
+  } else {
+    try {
+      const remote = await fsGetAllGames(db);
+      base = dedupeById([...remote, ...pendingRecords(classFilter)]);
+    } catch {
+      base = dedupeById([
+        ...localGetLeaderboard(classId, 100000),
+        ...pendingRecords(classFilter),
+      ]);
+    }
   }
-  try {
-    const remote = await fsGetLeaderboard(db, classId, max);
-    return dedupeById([...remote, ...pendingRecords(classFilter)]);
-  } catch {
-    return dedupeById([...localGetLeaderboard(classId, max), ...pendingRecords(classFilter)]);
-  }
+  return base.filter(byClass);
 }
 
 export async function getPlayer(uid: string): Promise<PlayerAggregate | null> {
@@ -234,30 +245,22 @@ export async function getMyGames(uid: string, max = 10): Promise<GameRecord[]> {
   }
 }
 
-/** 학급 리더보드: 플레이어별 최고 기록 1건으로 집계해 상위 maxPlayers 명을 반환. */
+/**
+ * 학급 리더보드: 전체 games 를 플레이어별 최고 기록 1건으로 집계해 상위 maxPlayers 명 반환.
+ * 점수순 절단 없이 전체를 집계하므로 저득점 플레이어도 누락되지 않는다.
+ */
 export async function getPlayerLeaderboard(
   classId: string | null,
   maxPlayers = 50,
 ): Promise<GameRecord[]> {
-  // 한 명이 여러 판을 해도 상위권을 독점하지 않도록 넉넉히 모아 best-per-uid 로 축약
-  const games = await collectGames(classId, 2000);
+  const games = await collectAllGames(classId);
   return bestPerUid(games).slice(0, maxPlayers);
 }
 
 /** 교사용 전체 기록: games 컬렉션 전체(+대기 기록)를 playedAt 내림차순으로. */
 export async function getAllGames(): Promise<GameRecord[]> {
-  const db = getDb();
-  const sortDesc = (rs: GameRecord[]) =>
-    rs.slice().sort((a, b) => b.playedAt - a.playedAt);
-  if (!db) return sortDesc(localGetLeaderboard(null, 100000));
-  try {
-    const remote = await fsGetAllGames(db);
-    return sortDesc(dedupeById([...remote, ...pendingRecords(() => true)]));
-  } catch {
-    return sortDesc(
-      dedupeById([...localGetLeaderboard(null, 100000), ...pendingRecords(() => true)]),
-    );
-  }
+  const games = await collectAllGames(null);
+  return games.slice().sort((a, b) => b.playedAt - a.playedAt);
 }
 
 /**
@@ -268,7 +271,7 @@ export async function getMyRank(
   uid: string,
   classId: string | null,
 ): Promise<number | null> {
-  const ranked = bestPerUid(await collectGames(classId, 2000));
+  const ranked = bestPerUid(await collectAllGames(classId));
   const idx = ranked.findIndex((g) => g.uid === uid);
   return idx >= 0 ? idx + 1 : null;
 }

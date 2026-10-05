@@ -80,16 +80,21 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
 
   // 메인 루프 (requestAnimationFrame 기반 — PRD 비기능 요구사항)
   useEffect(() => {
+    // 숨겨진 탭에서 rAF 가 멈춰 있다가 돌아오면 delta 가 수 분이 될 수 있다.
+    // 그 전체를 중력/경과시간에 더하면 블록이 한 번에 쏟아져 즉시 게임오버가 되고
+    // 숨은 시간이 플레이 시간으로 잡히므로, 프레임 간격에 상한을 둔다.
+    const MAX_FRAME_DELTA = 100;
+
     const loop = (timestamp: number) => {
       const prev = lastFrameRef.current;
       lastFrameRef.current = timestamp;
       const current = stateRef.current;
 
       if (prev !== null && current.phase === "playing") {
-        const delta = timestamp - prev;
+        const delta = Math.min(timestamp - prev, MAX_FRAME_DELTA);
         gravityAccRef.current += delta;
 
-        // 경과 시간 누적
+        // 경과 시간 누적(상한 적용된 delta 사용)
         let working = { ...current, elapsedMs: current.elapsedMs + delta };
 
         const interval = gravityIntervalMs(working.level);
@@ -107,10 +112,23 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
       rafRef.current = requestAnimationFrame(loop);
     };
 
+    // 탭이 숨겨지면 다음 프레임 기준시각을 리셋해, 복귀 시 거대한 delta 가 생기지 않도록 한다.
+    const resetFrameClock = () => {
+      lastFrameRef.current = null;
+      gravityAccRef.current = 0;
+    };
+    const onVisibility = () => {
+      if (document.hidden) resetFrameClock();
+    };
+    window.addEventListener("blur", resetFrameClock);
+    document.addEventListener("visibilitychange", onVisibility);
+
     rafRef.current = requestAnimationFrame(loop);
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       lastFrameRef.current = null;
+      window.removeEventListener("blur", resetFrameClock);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [update]);
 

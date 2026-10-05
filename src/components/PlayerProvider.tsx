@@ -12,6 +12,7 @@ import {
 import { ensureAnonymousUid } from "@/lib/firebase/auth";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { flushPending } from "@/lib/records";
+import { localRebindPending } from "@/lib/records/localStore";
 import {
   loadProfile,
   saveProfile as persistProfile,
@@ -39,8 +40,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     ensureAnonymousUid()
       .then((resolvedUid) => {
         if (!active) return;
+        // 실제 uid 면, 아직 전송되지 않은 대기 기록의 uid 를 먼저 로컬에서 재바인딩한다.
+        // (네트워크 flush 완료를 기다리지 않아도 읽기 병합이 새 uid 기준으로 즉시 일치)
+        if (!resolvedUid.startsWith("local-")) {
+          localRebindPending(resolvedUid);
+        }
         setUid(resolvedUid);
-        // 연결/인증이 회복되었을 수 있으므로 대기 기록을 현재 uid 로 재전송 시도
+        // 재바인딩 후 서버로 재전송 시도(완료를 기다리지 않음 — 읽기는 이미 일관됨)
         void flushPending(resolvedUid);
       })
       .finally(() => {

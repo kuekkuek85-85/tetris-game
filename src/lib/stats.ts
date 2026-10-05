@@ -62,8 +62,14 @@ export function gamesToCsv(games: GameRecord[]): string {
 }
 
 function csvEscape(value: string): string {
-  if (/[",\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
+  // CSV 수식 인젝션 방지: =,+,-,@,탭,CR 로 시작하는 값(학생이 입력한 닉네임/반)은
+  // 스프레드시트가 수식으로 해석하지 않도록 앞에 작은따옴표를 붙여 텍스트로 강제한다.
+  let safe = value;
+  if (/^[=+\-@\t\r]/.test(safe)) {
+    safe = `'${safe}`;
   }
-  return value;
+  if (/[",\n\r]/.test(safe)) {
+    return `"${safe.replace(/"/g, '""')}"`;
+  }
+  return safe;
 }
