@@ -135,6 +135,10 @@ export const ITEM_GAUGE_MAX = 8;
 export const ITEM_MAX_HELD = 3;
 /** 폭탄이 제거하는 바닥 줄 수 */
 export const BOMB_ROWS = 2;
+/** 슬로우 아이템 지속 시간(ms) */
+export const SLOW_DURATION_MS = 10000;
+/** 슬로우 동안 낙하 간격에 곱하는 배수(클수록 더 느림) */
+export const SLOW_FACTOR = 2.4;
 
 /** 아이템 표시 정보 */
 export const ITEM_INFO: Record<
@@ -143,6 +147,7 @@ export const ITEM_INFO: Record<
 > = {
   bomb: { label: "폭탄", glyph: "💣", hint: "바닥 2줄 제거" },
   clearLine: { label: "라인 소거", glyph: "✂️", hint: "가장 찬 줄 제거" },
+  slow: { label: "슬로우", glyph: "🐢", hint: "잠시 느리게" },
 };
 
 export const ROTATIONS: Rotation[] = [0, 1, 2, 3];

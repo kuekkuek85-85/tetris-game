@@ -7,6 +7,7 @@ import {
   KICKS_JLSTZ,
   NEXT_COUNT,
   PIECE_SHAPES,
+  SLOW_DURATION_MS,
   TOTAL_HEIGHT,
 } from "./constants";
 import { createBag, refillQueue, type Rng } from "./bag";
@@ -21,7 +22,7 @@ import type {
   Rotation,
 } from "./types";
 
-const ITEM_POOL: ItemType[] = ["bomb", "clearLine"];
+const ITEM_POOL: ItemType[] = ["bomb", "clearLine", "slow"];
 
 /** 빈 보드를 만든다 (숨은 버퍼 포함). */
 export function createEmptyBoard(): Board {
@@ -73,6 +74,7 @@ export function createInitialState(rng: Rng = Math.random): GameState {
     elapsedMs: 0,
     itemGauge: 0,
     items: [],
+    slowMsRemaining: 0,
   };
 }
 
@@ -387,9 +389,15 @@ export function consumeItem(state: GameState, slot: number): GameState {
   const item = state.items[slot];
   if (!item) return state;
 
-  const board = item === "bomb" ? applyBomb(state.board) : applyClearLine(state.board);
   const items = [...state.items];
   items.splice(slot, 1);
+
+  // 슬로우: 보드를 바꾸지 않고 낙하 속도만 일정 시간 느리게 한다(지속시간은 갱신=재발동).
+  if (item === "slow") {
+    return { ...state, items, slowMsRemaining: SLOW_DURATION_MS };
+  }
+
+  const board = item === "bomb" ? applyBomb(state.board) : applyClearLine(state.board);
 
   // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 내려와 충돌할 수 있다.
   // 이 재배치/ top-out 판정은 "아이템 붕괴가 실제로 활성 블록과 충돌을 만든 경우"에만 수행한다.

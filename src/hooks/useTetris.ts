@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { gravityIntervalMs } from "@/lib/tetris/constants";
+import { gravityIntervalMs, SLOW_FACTOR } from "@/lib/tetris/constants";
 import {
   createInitialState,
   hardDrop,
@@ -97,10 +97,19 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
         const delta = Math.min(timestamp - prev, MAX_FRAME_DELTA);
         gravityAccRef.current += delta;
 
-        // 경과 시간 누적(상한 적용된 delta 사용)
-        let working = { ...current, elapsedMs: current.elapsedMs + delta };
+        // 경과 시간 누적 + 슬로우 아이템 잔여 시간 감소(상한 적용된 delta 사용)
+        let working = {
+          ...current,
+          elapsedMs: current.elapsedMs + delta,
+          slowMsRemaining: Math.max(0, current.slowMsRemaining - delta),
+        };
 
-        const interval = gravityIntervalMs(working.level);
+        // 슬로우가 활성화된 동안에는 낙하 간격을 늘려 느리게 한다
+        const baseInterval = gravityIntervalMs(working.level);
+        const interval =
+          working.slowMsRemaining > 0
+            ? Math.round(baseInterval * SLOW_FACTOR)
+            : baseInterval;
         while (gravityAccRef.current >= interval) {
           gravityAccRef.current -= interval;
           working = tick(working);
@@ -259,6 +268,10 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
         case "2":
           e.preventDefault();
           if (!e.repeat) activateItem(1);
+          break;
+        case "3":
+          e.preventDefault();
+          if (!e.repeat) activateItem(2);
           break;
         default:
           break;

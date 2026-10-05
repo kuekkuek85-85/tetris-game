@@ -7,6 +7,7 @@ import {
   ITEM_GAUGE_MAX,
   ITEM_MAX_HELD,
   LINES_PER_LEVEL,
+  SLOW_DURATION_MS,
   TOTAL_HEIGHT,
 } from "./constants";
 import {
@@ -322,6 +323,20 @@ describe("items", () => {
     expect(used.phase).toBe("gameover");
     expect(used.active).toBeNull();
     expect(used.items).toHaveLength(0); // 아이템은 소비됨
+  });
+
+  it("슬로우는 보드를 바꾸지 않고 잔여 시간만 설정한다", () => {
+    const base = createInitialState(seededRng(6));
+    const state = {
+      ...base,
+      phase: "playing" as const,
+      items: ["slow", "bomb"] as ItemType[],
+    };
+    const used = consumeItem(state, 0);
+    expect(used.slowMsRemaining).toBe(SLOW_DURATION_MS);
+    expect(used.board).toBe(state.board); // 보드는 그대로(참조 동일)
+    expect(used.items).toEqual(["bomb"]); // 선택한 슬로우만 소비
+    expect(used.phase).toBe("playing");
   });
 
   it("아이템이 블록과 충돌을 만들지 않으면(합법적 y<0 포함) top-out 하지 않는다", () => {
