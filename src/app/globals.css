@@ -887,8 +887,8 @@ tbody tr.me {
     display: flex;
   }
 
-  /* 좁은 화면에서는 터치 컨트롤을 쓰므로 키보드 단축키 표는 숨긴다 */
-  .panel-box.shortcuts {
+  /* 좁은 화면에서는 터치 컨트롤을 쓰므로 키보드 단축키 컬럼은 숨긴다 */
+  .side-col.shortcuts-col {
     display: none;
   }
 
