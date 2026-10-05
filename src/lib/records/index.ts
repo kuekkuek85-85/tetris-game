@@ -119,9 +119,11 @@ function pendingToInput(p: PendingGame): SaveGameInput {
   return {
     uid: p.uid,
     nickname: p.nickname,
-    studentId: p.studentId,
-    classId: p.classId,
-    studentNo: p.studentNo,
+    // 업그레이드 이전에 쌓인 레거시 대기 기록엔 studentId 가 없을 수 있다.
+    // undefined 가 그대로 Firestore 에 전달되면 쓰기가 거부되어 큐가 영구 적체되므로 기본값으로 정규화.
+    studentId: p.studentId ?? "",
+    classId: p.classId ?? "",
+    studentNo: p.studentNo ?? null,
     score: p.score,
     lines: p.lines,
     level: p.level,
@@ -210,9 +212,9 @@ function foldPendingIntoAggregate(
     remote ?? {
       uid,
       nickname: mine[0].nickname,
-      studentId: mine[0].studentId,
-      classId: mine[0].classId,
-      studentNo: mine[0].studentNo,
+      studentId: mine[0].studentId ?? "",
+      classId: mine[0].classId ?? "",
+      studentNo: mine[0].studentNo ?? null,
       bestScore: 0,
       playCount: 0,
       totalLines: 0,

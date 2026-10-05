@@ -57,11 +57,13 @@ export async function fsSaveGame(
       playedAtMs != null ? Timestamp.fromMillis(playedAtMs) : serverTimestamp();
     const now = serverTimestamp();
 
+    // 학번은 공개 컬렉션(games)에 저장하지 않는다 (학생 간 노출 방지)
+    const studentId = input.studentId ?? "";
+
     // 게임 문서(고정 ID) — 재시도 시 덮어쓰기(멱등)
     tx.set(gameRef, {
       uid: input.uid,
       nickname: input.nickname,
-      studentId: input.studentId,
       classId: input.classId,
       score: input.score,
       lines: input.lines,
@@ -76,7 +78,7 @@ export async function fsSaveGame(
     if (!playerSnap.exists()) {
       tx.set(playerRef, {
         nickname: input.nickname,
-        studentId: input.studentId,
+        studentId, // 학번은 본인만 읽는 players 문서에만 저장
         classId: input.classId,
         studentNo: input.studentNo,
         bestScore: input.score,
@@ -94,7 +96,7 @@ export async function fsSaveGame(
       // 성명/학번/반 등 표시 정보만 최신화하고 누적치는 그대로 둔다
       tx.update(playerRef, {
         nickname: input.nickname,
-        studentId: input.studentId,
+        studentId,
         classId: input.classId,
         studentNo: input.studentNo,
       });
@@ -102,7 +104,7 @@ export async function fsSaveGame(
     }
     tx.update(playerRef, {
       nickname: input.nickname,
-      studentId: input.studentId,
+      studentId,
       classId: input.classId,
       studentNo: input.studentNo,
       bestScore: Math.max((prev.bestScore as number) ?? 0, input.score),
@@ -150,7 +152,6 @@ function mapGame(id: string, d: Record<string, unknown>): GameRecord {
     id,
     uid: asString(d.uid),
     nickname: asString(d.nickname),
-    studentId: asString(d.studentId),
     classId: asString(d.classId),
     score: asNumber(d.score, 0),
     lines: asNumber(d.lines, 0),

@@ -46,11 +46,14 @@ export function countParticipants(games: GameRecord[]): number {
   return new Set(games.map((g) => g.uid)).size;
 }
 
-/** 게임 기록을 CSV 문자열로 변환한다. */
+/**
+ * 게임 기록을 CSV 문자열로 변환한다.
+ * 학번은 공개 컬렉션(games)에 저장하지 않으므로 CSV 에도 포함하지 않는다.
+ * (성명·반으로 식별)
+ */
 export function gamesToCsv(games: GameRecord[]): string {
-  const header = ["학번", "성명", "반", "점수", "라인", "레벨", "플레이시간(ms)", "기록시각"];
+  const header = ["성명", "반", "점수", "라인", "레벨", "플레이시간(ms)", "기록시각"];
   const rows = games.map((g) => [
-    csvEscape(g.studentId),
     csvEscape(g.nickname),
     csvEscape(g.classId),
     String(g.score),

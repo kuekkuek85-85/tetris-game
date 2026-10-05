@@ -67,8 +67,9 @@ npm run test       # 게임 엔진 단위 테스트 (Vitest)
 ## 데이터 모델 (Firestore)
 
 - `players/{uid}` — nickname(성명), studentId(학번), classId(학년-반), studentNo, bestScore, playCount, totalLines, totalPlayMs, 시각
-- `games/{autoId}` — uid, nickname(성명), studentId(학번), classId, score, lines, level, durationMs, playedAt
+- `games/{autoId}` — uid, nickname(성명), classId, score, lines, level, durationMs, playedAt
   - 학번 5자리는 `학년(1) + 반(2) + 번호(2)` 구조로, classId(`학년-반`)와 studentNo를 자동 파생합니다.
+  - **학번(studentId)은 공개 컬렉션인 `games`에 저장하지 않고, 본인만 읽는 `players` 문서에만 보관합니다.** (학생 간 식별자 노출 방지) 교사용 목록·CSV는 성명·반으로 식별하며, 학번 전체 열람이 필요하면 서버 검증 권한(커스텀 클레임/Cloud Function)이 추가로 필요합니다.
 
 보안 규칙은 `firestore.rules`, 복합 인덱스는 `firestore.indexes.json` 에 정의되어 있습니다.
 

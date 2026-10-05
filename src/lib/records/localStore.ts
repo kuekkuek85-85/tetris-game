@@ -62,7 +62,6 @@ export function toGameRecord(p: PendingGame): GameRecord {
     id: p.id,
     uid: p.uid,
     nickname: p.nickname,
-    studentId: p.studentId,
     classId: p.classId,
     score: p.score,
     lines: p.lines,
@@ -82,7 +81,6 @@ export function localSaveGame(input: SaveGameInput): { ok: boolean; record: Game
     id: newId(),
     uid: input.uid,
     nickname: input.nickname,
-    studentId: input.studentId,
     classId: input.classId,
     score: input.score,
     lines: input.lines,
@@ -107,7 +105,7 @@ export function localSaveGame(input: SaveGameInput): { ok: boolean; record: Game
   players[input.uid] = {
     uid: input.uid,
     nickname: input.nickname,
-    studentId: input.studentId,
+    studentId: input.studentId ?? "", // 레거시 입력 방어
     classId: input.classId,
     studentNo: input.studentNo,
     bestScore: Math.max(prev?.bestScore ?? 0, input.score),
