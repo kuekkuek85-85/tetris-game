@@ -520,6 +520,52 @@ button:disabled {
   line-height: 1.6;
 }
 
+/* ===== Item legend (시작 화면) ===== */
+.item-legend {
+  margin: 1rem 0 0;
+  text-align: left;
+}
+
+.item-legend-intro {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.item-legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.item-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.item-legend-glyph {
+  font-size: 1.1rem;
+  width: 1.5rem;
+  text-align: center;
+  flex: none;
+}
+
+.item-legend-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 4.2rem;
+}
+
+.item-legend-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
 /* ===== Shortcut guide (항상 표시) ===== */
 .shortcut-list {
   margin: 0;

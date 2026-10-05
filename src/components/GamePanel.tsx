@@ -220,6 +220,7 @@ export function GamePanel() {
               >
                 시작하기
               </button>
+              <ItemLegend />
               <KeyGuide />
             </Overlay>
           )}
@@ -356,6 +357,31 @@ function KeyGuide() {
       <li>Shift/C 홀드 · P/Esc 일시정지</li>
       <li>1/2/3 아이템 사용 💣✂️🐢</li>
     </ul>
+  );
+}
+
+/** 시작 화면에 표시되는 아이템 종류 설명 */
+function ItemLegend() {
+  return (
+    <div className="item-legend">
+      <p className="item-legend-intro">
+        줄을 지우면 게이지가 차고, 가득 차면 아이템을 1개 얻어요 (최대 3개).
+      </p>
+      <ul>
+        {(Object.keys(ITEM_INFO) as Array<keyof typeof ITEM_INFO>).map((key) => {
+          const info = ITEM_INFO[key];
+          return (
+            <li key={key}>
+              <span className="item-legend-glyph" aria-hidden="true">
+                {info.glyph}
+              </span>
+              <span className="item-legend-label">{info.label}</span>
+              <span className="item-legend-hint">{info.hint}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
