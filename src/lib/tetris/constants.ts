@@ -124,7 +124,7 @@ export function gravityIntervalMs(level: number): number {
 }
 
 /** 다음 블록 미리보기 개수 */
-export const NEXT_COUNT = 5;
+export const NEXT_COUNT = 3;
 
 /** 레벨 상승에 필요한 라인 수 */
 export const LINES_PER_LEVEL = 8;
