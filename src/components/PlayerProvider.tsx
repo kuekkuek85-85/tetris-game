@@ -37,6 +37,8 @@ interface PlayerContextValue {
   firebaseEnabled: boolean;
   /** 학생 전환이 진행 중인지 (전환 중엔 새 게임 시작을 막는다) */
   isSwitching: boolean;
+  /** 구버전 프로필 정리(이전 사용자 분리)가 실패해 입력이 막힌 상태 */
+  migrationBlocked: boolean;
   setProfile: (profile: PlayerProfile) => void;
   /** 게임 진행 상태 보고 (전환 가능 여부 판단용) */
   setGameActive: (active: boolean) => void;
@@ -46,11 +48,36 @@ interface PlayerContextValue {
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
 
+/**
+ * 이전 사용자(prevUid)를 안전하게 정리하고 새 익명/로컬 UID 로 교체한다.
+ * 학생 전환과 구버전(닉네임) 프로필 마이그레이션이 공유한다.
+ * - 이전 사용자의 대기 기록을 "아직 그 사용자로 인증된 상태에서" 먼저 전송한다.
+ * - 전송 못한 기록이 남으면 SWITCH_ERR_PENDING 으로 중단(이전 UID 유실/다음 학생 흡수 방지).
+ * - signOut 실패 시 예외를 전파(이전 UID 가 남은 채 새 신원을 받지 않도록).
+ * - clearProfile 은 signOut 성공 "후"에만 호출하므로, 중단 시 마커가 보존되어 재시도 가능.
+ */
+async function rotateToNewIdentity(prevUid: string | null): Promise<string> {
+  // flushPending 내부에서 local-* 대기 기록은 prevUid 로 재바인딩되어 전송된다.
+  try {
+    await flushPending(prevUid ?? undefined);
+  } catch {
+    /* 네트워크 등 전송 실패 — 아래 잔존 검사에서 중단 */
+  }
+  if (hasPendingRecords()) {
+    throw new Error(SWITCH_ERR_PENDING);
+  }
+  await signOutAnonymous(); // 실패 시 throw → 호출부가 중단 처리
+  clearProfile();
+  rotateLocalUid();
+  return ensureAnonymousUid();
+}
+
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [uid, setUid] = useState<string | null>(null);
   const [profile, setProfileState] = useState<PlayerProfile | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [migrationBlocked, setMigrationBlocked] = useState(false);
 
   // 게임 진행 여부는 전환 시점에 최신값을 읽어야 하므로 ref 로 추적
   const gameActiveRef = useRef(false);
@@ -60,30 +87,34 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
-    // 구버전(닉네임) 프로필 흔적만 있으면: 이전 사용자 UID 를 분리하고 흔적을 정리한 뒤 새로 시작
     const legacy = hasLegacyProfile();
-    if (legacy) {
-      clearProfile();
-      setProfileState(null);
-    } else {
-      setProfileState(loadProfile());
-    }
+    setProfileState(legacy ? null : loadProfile());
 
     const init = async () => {
-      if (legacy) {
-        // 이전(닉네임) 사용자의 익명 UID 로 새 학생 기록이 병합되지 않도록 UID 를 교체
-        await signOutAnonymous().catch(() => {});
-        rotateLocalUid();
-      }
-      const resolvedUid = await ensureAnonymousUid();
+      // 현재(레거시이면 이전 사용자의) UID 를 확보한다.
+      const currentUid = await ensureAnonymousUid();
       if (!active) return;
-      // 실제 uid 면, 아직 전송되지 않은 대기 기록의 uid 를 먼저 로컬에서 재바인딩한다.
-      if (!resolvedUid.startsWith("local-")) {
-        localRebindPending(resolvedUid);
+
+      if (legacy) {
+        // 구버전(닉네임) 사용자 → 안전하게 정리 후 UID 교체. 실패 시 마커 보존 + 입력 차단.
+        try {
+          const freshUid = await rotateToNewIdentity(currentUid);
+          if (!active) return;
+          setUid(freshUid);
+        } catch {
+          if (!active) return;
+          setMigrationBlocked(true);
+          setUid(currentUid);
+        }
+        return;
       }
-      setUid(resolvedUid);
-      // 재바인딩 후 서버로 재전송 시도(완료를 기다리지 않음 — 읽기는 이미 일관됨)
-      void flushPending(resolvedUid);
+
+      // 일반 경로: 실제 uid 면 local-* 대기 기록을 즉시 재바인딩 후 재전송 시도
+      if (!currentUid.startsWith("local-")) {
+        localRebindPending(currentUid);
+      }
+      setUid(currentUid);
+      void flushPending(currentUid);
     };
 
     init().finally(() => {
@@ -101,8 +132,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchStudent = useCallback(async () => {
-    // 0) 게임이 진행(또는 일시정지) 중이면 전환을 막는다. 전환을 inactive 상태에서만 시작하고
-    //    전환 중에는 새 게임 시작도 막으므로(isSwitching), 전환 구간에 게임오버·새 저장이 생기지 않는다.
+    // 0) 게임이 진행(또는 일시정지) 중이면 전환을 막는다. 전환은 inactive 상태에서만 시작하고
+    //    전환 중에는 새 게임 시작도 막으므로(isSwitching), 전환 구간에 게임오버·새 저장이 없다.
     if (gameActiveRef.current) {
       throw new Error(SWITCH_ERR_GAME_ACTIVE);
     }
@@ -112,24 +143,7 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     }
     setIsSwitching(true);
     try {
-      // 2) 이전 학생의 대기 기록을 "아직 그 학생으로 인증된 상태에서" 먼저 전송한다.
-      if (uid) {
-        try {
-          await flushPending(uid);
-        } catch {
-          /* 네트워크 등 전송 실패 — 아래 잔존 검사에서 전환을 중단시킨다 */
-        }
-      }
-      // 3) 아직 전송되지 못한 대기 기록이 남아 있으면 전환을 중단한다(영구 유실·섞임 방지).
-      if (hasPendingRecords()) {
-        throw new Error(SWITCH_ERR_PENDING);
-      }
-      // 4) 익명 로그아웃 — 실패하면 전환을 중단한다(throw 시 프로필/UID 유지).
-      await signOutAnonymous();
-      // 5) 프로필 제거 + 로컬 UID 교체 + 새 UID 발급 → 다음 학생이 깨끗한 신원으로 시작
-      clearProfile();
-      rotateLocalUid();
-      const freshUid = await ensureAnonymousUid();
+      const freshUid = await rotateToNewIdentity(uid);
       setProfileState(null);
       setUid(freshUid);
     } finally {
@@ -144,11 +158,21 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       authReady,
       firebaseEnabled: isFirebaseConfigured(),
       isSwitching,
+      migrationBlocked,
       setProfile,
       setGameActive,
       switchStudent,
     }),
-    [uid, profile, authReady, isSwitching, setProfile, setGameActive, switchStudent],
+    [
+      uid,
+      profile,
+      authReady,
+      isSwitching,
+      migrationBlocked,
+      setProfile,
+      setGameActive,
+      switchStudent,
+    ],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
