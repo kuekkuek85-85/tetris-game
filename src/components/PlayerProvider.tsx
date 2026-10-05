@@ -40,8 +40,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       .then((resolvedUid) => {
         if (!active) return;
         setUid(resolvedUid);
-        // 연결이 회복되었을 수 있으므로 대기 중인 로컬 기록을 재전송 시도
-        void flushPending();
+        // 연결/인증이 회복되었을 수 있으므로 대기 기록을 현재 uid 로 재전송 시도
+        void flushPending(resolvedUid);
       })
       .finally(() => {
         if (active) setAuthReady(true);

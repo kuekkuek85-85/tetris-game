@@ -10,12 +10,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isValidScore(data) {
+    function isValidGame(data) {
       return data.score is int && data.score >= 0
         && data.lines is int && data.lines >= 0
         && data.level is int && data.level >= 1
         && data.durationMs is int && data.durationMs >= 0
-        && data.nickname is string && data.nickname.size() <= 12;
+        && data.uid is string
+        && data.nickname is string && data.nickname.size() <= 12
+        // classId 는 선택값이지만, 들어오면 반드시 길이 제한이 있는 문자열이어야 한다.
+        // (숫자 등 비문자열이 저장되면 교사 통계의 localeCompare 가 런타임 크래시)
+        && data.classId is string && data.classId.size() <= 20;
     }
 
     // players: 문서 ID = 본인 uid.
@@ -37,12 +41,12 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
-        && isValidScore(request.resource.data);
+        && isValidGame(request.resource.data);
       // 재시도 멱등성을 위해 본인 기록의 덮어쓰기(set)는 허용, 삭제는 금지.
       allow update: if isSignedIn()
         && resource.data.uid == request.auth.uid
         && request.resource.data.uid == request.auth.uid
-        && isValidScore(request.resource.data);
+        && isValidGame(request.resource.data);
       allow delete: if false;
     }
 

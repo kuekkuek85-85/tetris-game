@@ -32,6 +32,27 @@ function write<T>(key: string, value: T): boolean {
   }
 }
 
+/** 원래의 직렬화된 값을 읽어둔다 (롤백용). 키가 없으면 null. */
+function rawSnapshot(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+/** 스냅샷으로 되돌린다 (null 이면 키 삭제). 실패는 무시. */
+function restore(key: string, snapshot: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (snapshot === null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, snapshot);
+  } catch {
+    /* 롤백 실패는 더 할 수 있는 것이 없으므로 무시 */
+  }
+}
+
 function newId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -68,9 +89,16 @@ export function localSaveGame(input: SaveGameInput): { ok: boolean; record: Game
     playedAt: now,
   };
 
+  // 두 키를 모두 갱신하므로, 하나만 성공하고 다른 하나가 실패하면 롤백해 일관성을 지킨다.
+  const gamesSnapshot = rawSnapshot(GAMES_KEY);
+  const playersSnapshot = rawSnapshot(PLAYERS_KEY);
+
   const games = read<GameRecord[]>(GAMES_KEY, []);
   games.push(record);
   const gamesOk = write(GAMES_KEY, games);
+  if (!gamesOk) {
+    return { ok: false, record };
+  }
 
   const players = read<Record<string, PlayerAggregate>>(PLAYERS_KEY, {});
   const prev = players[input.uid];
@@ -87,8 +115,14 @@ export function localSaveGame(input: SaveGameInput): { ok: boolean; record: Game
     lastPlayedAt: now,
   };
   const playersOk = write(PLAYERS_KEY, players);
+  if (!playersOk) {
+    // 집계 저장 실패 → 방금 쓴 게임 기록도 원복해 부분 저장 상태를 남기지 않는다
+    restore(GAMES_KEY, gamesSnapshot);
+    restore(PLAYERS_KEY, playersSnapshot);
+    return { ok: false, record };
+  }
 
-  return { ok: gamesOk && playersOk, record };
+  return { ok: true, record };
 }
 
 export function localGetPlayer(uid: string): PlayerAggregate | null {

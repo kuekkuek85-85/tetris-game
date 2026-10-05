@@ -11,9 +11,14 @@ import {
   query,
   runTransaction,
   serverTimestamp,
+  startAfter,
   Timestamp,
   where,
+  type DocumentData,
   type Firestore,
+  type Query,
+  type QueryDocumentSnapshot,
+  type QuerySnapshot,
 } from "firebase/firestore";
 import type { GameRecord, PlayerAggregate, SaveGameInput } from "./types";
 
@@ -37,6 +42,8 @@ export async function fsSaveGame(
   db: Firestore,
   input: SaveGameInput,
   gameId: string,
+  /** 오프라인 기록 재전송 시 원래 플레이 시각(ms)을 보존하기 위한 값 */
+  playedAtMs?: number,
 ): Promise<void> {
   const gameRef = doc(db, GAMES, gameId);
   const playerRef = doc(db, PLAYERS, input.uid);
@@ -45,6 +52,9 @@ export async function fsSaveGame(
     // 트랜잭션은 모든 읽기를 쓰기보다 먼저 수행해야 한다
     const playerSnap = await tx.get(playerRef);
     const gameSnap = await tx.get(gameRef);
+    // 재전송(playedAtMs 제공) 시 원래 시각 유지, 아니면 서버 시각 사용
+    const playedAt =
+      playedAtMs != null ? Timestamp.fromMillis(playedAtMs) : serverTimestamp();
     const now = serverTimestamp();
 
     // 게임 문서(고정 ID) — 재시도 시 덮어쓰기(멱등)
@@ -56,7 +66,7 @@ export async function fsSaveGame(
       lines: input.lines,
       level: input.level,
       durationMs: input.durationMs,
-      playedAt: now,
+      playedAt,
     });
 
     // 이미 이 게임이 집계에 반영되었다면(재시도) 집계는 건너뛴다
@@ -121,16 +131,25 @@ export async function fsGetPlayer(
   };
 }
 
+function asString(value: unknown): string {
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+function asNumber(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
 function mapGame(id: string, d: Record<string, unknown>): GameRecord {
+  // 보안 규칙으로 타입을 강제하지만, 런타임 크래시 방지를 위해 방어적으로 변환한다.
   return {
     id,
-    uid: (d.uid as string) ?? "",
-    nickname: (d.nickname as string) ?? "",
-    classId: (d.classId as string) ?? "",
-    score: (d.score as number) ?? 0,
-    lines: (d.lines as number) ?? 0,
-    level: (d.level as number) ?? 1,
-    durationMs: (d.durationMs as number) ?? 0,
+    uid: asString(d.uid),
+    nickname: asString(d.nickname),
+    classId: asString(d.classId),
+    score: asNumber(d.score, 0),
+    lines: asNumber(d.lines, 0),
+    level: asNumber(d.level, 1),
+    durationMs: asNumber(d.durationMs, 0),
     playedAt: toMs(d.playedAt),
   };
 }
@@ -168,5 +187,32 @@ export async function fsGetLeaderboard(
   return snap.docs.map((doc) => mapGame(doc.id, doc.data()));
 }
 
-// 참고: 교사용 전체 통계는 games 컬렉션만으로 계산한다.
+/**
+ * 교사용 통계를 위해 games 컬렉션 전체를 playedAt 내림차순으로 페이지네이션하여 가져온다.
+ * (점수순 상위 N개만 가져오면 통계가 왜곡되므로 시간순으로 모두 수집한다.)
+ * 폭주 방지를 위한 안전 상한(safetyCap)을 둔다.
+ */
+export async function fsGetAllGames(
+  db: Firestore,
+  pageSize = 500,
+  safetyCap = 20000,
+): Promise<GameRecord[]> {
+  const base = collection(db, GAMES);
+  const out: GameRecord[] = [];
+  let cursor: QueryDocumentSnapshot<DocumentData> | null = null;
+
+  while (out.length < safetyCap) {
+    const q: Query<DocumentData> = cursor
+      ? query(base, orderBy("playedAt", "desc"), startAfter(cursor), fsLimit(pageSize))
+      : query(base, orderBy("playedAt", "desc"), fsLimit(pageSize));
+    const snap: QuerySnapshot<DocumentData> = await getDocs(q);
+    if (snap.empty) break;
+    for (const d of snap.docs) out.push(mapGame(d.id, d.data()));
+    if (snap.docs.length < pageSize) break;
+    cursor = snap.docs[snap.docs.length - 1];
+  }
+  return out;
+}
+
+// 참고: 교사용 통계는 games 컬렉션만으로 계산한다.
 // players 컬렉션은 보안 규칙상 본인 문서만 읽을 수 있으므로 전체 조회 함수를 두지 않는다.

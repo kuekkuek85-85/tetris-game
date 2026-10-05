@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePlayer } from "@/components/PlayerProvider";
-import { getLeaderboard, type GameRecord } from "@/lib/records";
+import { getPlayerLeaderboard, type GameRecord } from "@/lib/records";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
 type Scope = "all" | "class";
@@ -20,7 +20,8 @@ export default function LeaderboardPage() {
     let active = true;
     setLoading(true);
     const filterClass = scope === "class" ? classId : null;
-    getLeaderboard(filterClass, 50)
+    // 플레이어별 최고 기록 1건으로 집계된 상위 랭킹을 받는다(화면 순위 = getMyRank 기준 일치).
+    getPlayerLeaderboard(filterClass, 50)
       .then((r) => active && setRecords(r))
       .finally(() => active && setLoading(false));
     return () => {
@@ -28,11 +29,7 @@ export default function LeaderboardPage() {
     };
   }, [authReady, scope, classId]);
 
-  // 동점 시 달성 시각 빠른 순 (score desc, playedAt asc)
-  const sorted = useMemo(
-    () => [...records].sort((a, b) => b.score - a.score || a.playedAt - b.playedAt),
-    [records],
-  );
+  const sorted = records;
 
   return (
     <div className="page leaderboard">
