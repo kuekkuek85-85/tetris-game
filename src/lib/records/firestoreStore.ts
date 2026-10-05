@@ -75,13 +75,24 @@ export async function fsSaveGame(
     // 이미 이 게임이 집계에 반영되었다면(재시도) 집계는 건너뛴다
     const alreadyCounted = gameSnap.exists();
 
-    // 학번이 비어 있으면(레거시 기록) 기존 players.studentId 를 덮어쓰지 않는다.
-    const idField = studentId ? { studentId } : {};
+    // 유효한 학번이 있는 입력만 "신뢰할 수 있는 신원"으로 본다.
+    // 학번이 없는 레거시 기록을 재전송할 때는, 기존 players 의 신원 필드
+    // (nickname/studentId/classId/studentNo)를 전혀 건드리지 않고 누적 통계만 반영한다.
+    const hasIdentity = studentId !== "";
+    const identityFields = hasIdentity
+      ? {
+          nickname: input.nickname,
+          studentId,
+          classId: input.classId,
+          studentNo: input.studentNo,
+        }
+      : {};
 
     if (!playerSnap.exists()) {
+      // 신규 생성: 가진 신원으로 생성(학번 없으면 studentId 생략)
       tx.set(playerRef, {
         nickname: input.nickname,
-        ...idField, // 학번은 본인만 읽는 players 문서에만 저장 (빈값이면 생략)
+        ...(hasIdentity ? { studentId } : {}),
         classId: input.classId,
         studentNo: input.studentNo,
         bestScore: input.score,
@@ -94,22 +105,15 @@ export async function fsSaveGame(
       return;
     }
 
-    const prev = playerSnap.data();
     if (alreadyCounted) {
-      // 성명/학번/반 등 표시 정보만 최신화하고 누적치는 그대로 둔다
-      tx.update(playerRef, {
-        nickname: input.nickname,
-        ...idField,
-        classId: input.classId,
-        studentNo: input.studentNo,
-      });
+      // 누적치는 그대로 두고, 신뢰할 신원이 있을 때만 표시 정보를 최신화
+      if (hasIdentity) tx.update(playerRef, identityFields);
       return;
     }
+
+    const prev = playerSnap.data();
     tx.update(playerRef, {
-      nickname: input.nickname,
-      ...idField,
-      classId: input.classId,
-      studentNo: input.studentNo,
+      ...identityFields, // 레거시(학번 없음)면 신원 필드는 건드리지 않음
       bestScore: Math.max((prev.bestScore as number) ?? 0, input.score),
       playCount: ((prev.playCount as number) ?? 0) + 1,
       totalLines: ((prev.totalLines as number) ?? 0) + input.lines,
