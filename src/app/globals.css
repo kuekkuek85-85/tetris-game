@@ -857,6 +857,14 @@ tbody tr.me {
 }
 
 /* ===== Responsive ===== */
+/* 4개 컬럼(좌/보드/다음/단축키)이 들어갈 여유가 없는 폭에서는 단축키 컬럼을 숨긴다.
+   (약 740px 필요 → 여유를 두어 820px 이하에서 숨김) */
+@media (max-width: 820px) {
+  .side-col.shortcuts-col {
+    display: none;
+  }
+}
+
 @media (max-width: 720px) {
   :root {
     --cell: min(8.5vw, 1.7rem);
@@ -885,11 +893,6 @@ tbody tr.me {
 
   .touch-controls {
     display: flex;
-  }
-
-  /* 좁은 화면에서는 터치 컨트롤을 쓰므로 키보드 단축키 컬럼은 숨긴다 */
-  .side-col.shortcuts-col {
-    display: none;
   }
 
   .class-meta {
