@@ -67,16 +67,25 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchStudent = useCallback(async () => {
-    // 1) 프로필 제거 → 시작 화면(StartForm)으로 돌아간다
-    clearProfile();
-    setProfileState(null);
-    setUid(null);
-    // 2) 익명 로그아웃 + 로컬 UID 교체 → 다음 학생이 새 신원으로 시작
+    // 1) 이전 학생의 대기 기록을 "아직 그 학생으로 인증된 상태에서" 먼저 전송한다.
+    //    (전환 후에는 그 UID 로 다시 인증할 수 없어 전송·귀속이 불가능)
+    if (uid) {
+      try {
+        await flushPending(uid);
+      } catch {
+        /* 전송 실패는 전환을 막지 않는다(남은 기록은 이전 UID 에 귀속되어 섞이지 않음) */
+      }
+    }
+    // 2) 익명 로그아웃 — 실패하면 전환을 중단한다(이전 UID 가 남은 채 진행하면 기록이 섞임).
+    //    여기서 throw 되면 프로필/UID 를 건드리지 않았으므로 이전 상태가 유지된다.
     await signOutAnonymous();
+    // 3) 프로필 제거 + 로컬 UID 교체 + 새 UID 발급 → 다음 학생이 깨끗한 신원으로 시작
+    clearProfile();
     rotateLocalUid();
     const freshUid = await ensureAnonymousUid();
+    setProfileState(null);
     setUid(freshUid);
-  }, []);
+  }, [uid]);
 
   const value = useMemo<PlayerContextValue>(
     () => ({

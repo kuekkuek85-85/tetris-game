@@ -28,6 +28,10 @@ export function SiteNav() {
     try {
       await switchStudent();
       router.push("/");
+    } catch {
+      window.alert(
+        "학생 전환에 실패했어요(네트워크 문제일 수 있음). 잠시 후 다시 시도해 주세요.",
+      );
     } finally {
       setSwitching(false);
     }

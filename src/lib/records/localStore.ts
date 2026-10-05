@@ -181,8 +181,9 @@ export function localRemovePending(ids: string[]): void {
 }
 
 /**
- * 대기 기록의 uid 를 인증된 uid 로 재바인딩한다.
- * (익명 인증 복구 후, 읽기 병합이 새 uid 기준으로 즉시 일치하도록)
+ * 아직 특정 학생에게 귀속되지 않은(local-* uid) 대기 기록만 인증된 uid 로 재바인딩한다.
+ * 이미 실제 uid 에 귀속된 기록(= 다른 학생의 것일 수 있음)은 건드리지 않는다.
+ * (익명 인증 복구 후 읽기 병합이 새 uid 기준으로 즉시 일치하도록, 단 학생 전환 시 섞임 방지)
  * 변경이 있었으면 true 를 반환.
  */
 export function localRebindPending(toUid: string): boolean {
@@ -190,7 +191,7 @@ export function localRebindPending(toUid: string): boolean {
   if (list.length === 0) return false;
   let changed = false;
   const next = list.map((p) => {
-    if (p.uid !== toUid) {
+    if (p.uid !== toUid && p.uid.startsWith("local-")) {
       changed = true;
       return { ...p, uid: toUid };
     }

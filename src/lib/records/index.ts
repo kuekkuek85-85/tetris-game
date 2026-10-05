@@ -100,15 +100,20 @@ export async function flushPending(authUid?: string): Promise<number> {
 
   let flushedCount = 0;
   for (const p of pending) {
-    const uid = rebindUid ?? p.uid;
-    // 재바인딩할 실제 uid 가 없고 저장된 uid 도 local-* 라면 아직 전송 불가 — 보류
-    if (!isRealUid(uid)) break;
+    // local-* 레코드(아직 학생 미귀속)만 현재 인증 uid 로 재바인딩한다.
+    // 이미 실제 uid 에 귀속된 레코드는 그 uid 로만 전송(다른 학생 것일 수 있으므로 섞지 않음).
+    const uid = p.uid.startsWith("local-") && rebindUid ? rebindUid : p.uid;
+    // 아직 전송 불가한 경우는 보류하되, 뒤 항목은 계속 시도한다(큐 선두 blocking 방지).
+    //  - 실제 uid 가 아님(인증 전 local-*)
+    //  - 현재 세션 인증(rebindUid)과 다른 실제 uid → 이 세션에선 규칙상 쓸 수 없음
+    if (!isRealUid(uid)) continue;
+    if (rebindUid && uid !== rebindUid) continue;
     try {
       await fsSaveGame(db, { ...pendingToInput(p), uid }, p.id, p.playedAt);
       localRemovePending([p.id]); // 성공 즉시 제거 → 이중 계산 창 제거
       flushedCount += 1;
     } catch {
-      // 하나라도 실패하면 이후 항목은 다음 기회에 재시도
+      // 전송 자체 실패(네트워크 등)는 중단 — 다음 기회에 재시도
       break;
     }
   }
