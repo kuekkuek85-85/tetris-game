@@ -5,6 +5,11 @@ import type { GameRecord, PlayerAggregate, SaveGameInput } from "./types";
 
 const GAMES_KEY = "tetris.local.games";
 const PLAYERS_KEY = "tetris.local.players";
+// Firebase 가 설정되어 있으나 저장에 실패해 로컬에 임시 보관 중인(아직 서버에 없는) 기록
+const PENDING_KEY = "tetris.local.pending";
+
+/** 서버 재전송을 위해 보관하는 대기 기록 (식별용 id/시각 포함) */
+export type PendingGame = SaveGameInput & { id: string; playedAt: number };
 
 function read<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -16,19 +21,43 @@ function read<T>(key: string, fallback: T): T {
   }
 }
 
-function write<T>(key: string, value: T): void {
-  if (typeof window === "undefined") return;
+/** 저장 성공 여부를 반환한다 (호출부가 실패를 사용자에게 알릴 수 있도록). */
+function write<T>(key: string, value: T): boolean {
+  if (typeof window === "undefined") return false;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch {
-    /* 저장 실패 무시 */
+    return false;
   }
 }
 
-export function localSaveGame(input: SaveGameInput): GameRecord {
+function newId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function toGameRecord(p: PendingGame): GameRecord {
+  return {
+    id: p.id,
+    uid: p.uid,
+    nickname: p.nickname,
+    classId: p.classId,
+    score: p.score,
+    lines: p.lines,
+    level: p.level,
+    durationMs: p.durationMs,
+    playedAt: p.playedAt,
+  };
+}
+
+/**
+ * 로컬 전용 모드의 기본 저장소에 기록을 저장한다.
+ * 게임 기록과 집계를 모두 기록하며, 둘 중 하나라도 실패하면 ok:false 를 돌려준다.
+ */
+export function localSaveGame(input: SaveGameInput): { ok: boolean; record: GameRecord } {
   const now = Date.now();
   const record: GameRecord = {
-    id: `${now}-${Math.random().toString(36).slice(2, 8)}`,
+    id: newId(),
     uid: input.uid,
     nickname: input.nickname,
     classId: input.classId,
@@ -41,9 +70,8 @@ export function localSaveGame(input: SaveGameInput): GameRecord {
 
   const games = read<GameRecord[]>(GAMES_KEY, []);
   games.push(record);
-  write(GAMES_KEY, games);
+  const gamesOk = write(GAMES_KEY, games);
 
-  // 집계 갱신
   const players = read<Record<string, PlayerAggregate>>(PLAYERS_KEY, {});
   const prev = players[input.uid];
   players[input.uid] = {
@@ -58,9 +86,9 @@ export function localSaveGame(input: SaveGameInput): GameRecord {
     createdAt: prev?.createdAt ?? now,
     lastPlayedAt: now,
   };
-  write(PLAYERS_KEY, players);
+  const playersOk = write(PLAYERS_KEY, players);
 
-  return record;
+  return { ok: gamesOk && playersOk, record };
 }
 
 export function localGetPlayer(uid: string): PlayerAggregate | null {
@@ -86,16 +114,33 @@ export function localGetAllGames(): GameRecord[] {
   return read<GameRecord[]>(GAMES_KEY, []).sort((a, b) => b.playedAt - a.playedAt);
 }
 
-export function localGetAllPlayers(): PlayerAggregate[] {
-  const players = read<Record<string, PlayerAggregate>>(PLAYERS_KEY, {});
-  return Object.values(players);
-}
-
 /** 내 순위 (리더보드 상의 1-based 순위). 없으면 null. */
 export function localGetMyRank(uid: string, classId: string | null): number | null {
-  const players = localGetAllPlayers()
+  const players = Object.values(read<Record<string, PlayerAggregate>>(PLAYERS_KEY, {}))
     .filter((p) => (classId ? p.classId === classId : true))
     .sort((a, b) => b.bestScore - a.bestScore);
   const idx = players.findIndex((p) => p.uid === uid);
   return idx >= 0 ? idx + 1 : null;
+}
+
+/* ===== 서버 재전송 대기 큐 (Firebase 설정 모드 전용 폴백) ===== */
+
+/** 대기 큐에 기록을 추가한다. localStorage 쓰기 성공 여부를 반환. */
+export function localAddPending(input: SaveGameInput): { ok: boolean; pending: PendingGame } {
+  const pending: PendingGame = { ...input, id: newId(), playedAt: Date.now() };
+  const list = read<PendingGame[]>(PENDING_KEY, []);
+  list.push(pending);
+  return { ok: write(PENDING_KEY, list), pending };
+}
+
+export function localGetPending(): PendingGame[] {
+  return read<PendingGame[]>(PENDING_KEY, []);
+}
+
+/** 서버 전송에 성공한 대기 기록을 큐에서 제거한다. */
+export function localRemovePending(ids: string[]): void {
+  if (ids.length === 0) return;
+  const remove = new Set(ids);
+  const list = read<PendingGame[]>(PENDING_KEY, []).filter((p) => !remove.has(p.id));
+  write(PENDING_KEY, list);
 }

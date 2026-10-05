@@ -18,9 +18,12 @@ service cloud.firestore {
         && data.nickname is string && data.nickname.size() <= 12;
     }
 
-    // players: 문서 ID = 본인 uid. 본인만 생성/수정, 읽기는 로그인 사용자 허용(리더보드/대시보드).
+    // players: 문서 ID = 본인 uid.
+    // 읽기는 "본인 문서만" 허용한다. (반/번호 등 학생 명부가 전체 공개되지 않도록)
+    // 리더보드·순위·교사용 통계는 민감 정보(studentNo)가 없는 games 컬렉션으로 계산한다.
+    // 교사 전원 열람이 필요하면 서버에서 검증된 권한(커스텀 클레임) 또는 별도 정제 컬렉션을 사용한다.
     match /players/{uid} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && request.auth.uid == uid;
       allow create, update: if isSignedIn()
         && request.auth.uid == uid
         && request.resource.data.nickname is string
@@ -28,13 +31,19 @@ service cloud.firestore {
       allow delete: if false; // 삭제는 교사(관리자 콘솔/함수)에서만
     }
 
-    // games: 본인 uid 로만 생성. 수정·삭제는 금지(기록 불변), 읽기는 로그인 사용자 허용.
+    // games: 본인 uid 로만 생성. 수정은 금지(기록 불변), 읽기는 로그인 사용자 허용.
+    // games 에는 실명/이메일/번호 없이 닉네임·점수만 담겨 리더보드 표시용으로 공개된다.
     match /games/{gameId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.uid == request.auth.uid
         && isValidScore(request.resource.data);
-      allow update, delete: if false;
+      // 재시도 멱등성을 위해 본인 기록의 덮어쓰기(set)는 허용, 삭제는 금지.
+      allow update: if isSignedIn()
+        && resource.data.uid == request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && isValidScore(request.resource.data);
+      allow delete: if false;
     }
 
     // classes(선택): 읽기 전용. 쓰기는 관리자 콘솔/함수에서만.

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { ensureAnonymousUid } from "@/lib/firebase/auth";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
+import { flushPending } from "@/lib/records";
 import {
   loadProfile,
   saveProfile as persistProfile,
@@ -39,6 +40,8 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       .then((resolvedUid) => {
         if (!active) return;
         setUid(resolvedUid);
+        // 연결이 회복되었을 수 있으므로 대기 중인 로컬 기록을 재전송 시도
+        void flushPending();
       })
       .finally(() => {
         if (active) setAuthReady(true);

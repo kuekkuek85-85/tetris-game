@@ -243,7 +243,7 @@ export function holdPiece(state: GameState, rng: Rng = Math.random): GameState {
   if (state.hold === null) {
     // 보관함이 비어 있으면: 현재 블록 보관 + 큐에서 새 블록
     const { active, queue, bag } = pullNextPiece(state, rng);
-    return {
+    const held: GameState = {
       ...state,
       active,
       queue,
@@ -251,13 +251,24 @@ export function holdPiece(state: GameState, rng: Rng = Math.random): GameState {
       hold: currentType,
       holdUsed: true,
     };
+    // 새 블록이 스폰 자리에서 바로 충돌하면 top-out 처리 (lockPiece 와 동일)
+    if (collides(held.board, active)) {
+      return { ...held, active: null, phase: "gameover" };
+    }
+    return held;
   }
 
   // 보관함과 교체
   const swapped = spawnPiece(state.hold);
-  // 교체한 블록이 바로 충돌하면 홀드 취소(안전장치)
+  // 교체한 블록이 스폰 자리에서 바로 충돌하면 top-out 처리
   if (collides(state.board, swapped)) {
-    return state;
+    return {
+      ...state,
+      active: null,
+      hold: currentType,
+      holdUsed: true,
+      phase: "gameover",
+    };
   }
   return {
     ...state,

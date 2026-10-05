@@ -2,13 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePlayer } from "@/components/PlayerProvider";
-import {
-  getAllGames,
-  getAllPlayers,
-  type GameRecord,
-  type PlayerAggregate,
-} from "@/lib/records";
-import { computeClassStats, gamesToCsv } from "@/lib/stats";
+import { getAllGames, type GameRecord } from "@/lib/records";
+import { computeClassStats, countParticipants, gamesToCsv } from "@/lib/stats";
 import { formatDateTime, formatNumber } from "@/lib/format";
 
 const ACCESS_CODE = process.env.NEXT_PUBLIC_TEACHER_ACCESS_CODE ?? "";
@@ -19,7 +14,6 @@ export default function TeacherPage() {
   const [codeInput, setCodeInput] = useState("");
   const [codeError, setCodeError] = useState(false);
 
-  const [players, setPlayers] = useState<PlayerAggregate[]>([]);
   const [games, setGames] = useState<GameRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [openClass, setOpenClass] = useState<string | null>(null);
@@ -28,11 +22,9 @@ export default function TeacherPage() {
     if (!authReady || !unlocked) return;
     let active = true;
     setLoading(true);
-    Promise.all([getAllPlayers(), getAllGames()])
-      .then(([p, g]) => {
-        if (!active) return;
-        setPlayers(p);
-        setGames(g);
+    getAllGames()
+      .then((g) => {
+        if (active) setGames(g);
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -40,10 +32,8 @@ export default function TeacherPage() {
     };
   }, [authReady, unlocked]);
 
-  const classStats = useMemo(
-    () => computeClassStats(players, games),
-    [players, games],
-  );
+  const classStats = useMemo(() => computeClassStats(games), [games]);
+  const participantCount = useMemo(() => countParticipants(games), [games]);
 
   const gamesByClass = useMemo(() => {
     const map = new Map<string, GameRecord[]>();
@@ -126,7 +116,7 @@ export default function TeacherPage() {
           <section className="stat-grid">
             <div className="stat-card">
               <span className="stat-label">참여 학생</span>
-              <span className="stat-value">{players.length}명</span>
+              <span className="stat-value">{participantCount}명</span>
             </div>
             <div className="stat-card">
               <span className="stat-label">총 플레이</span>

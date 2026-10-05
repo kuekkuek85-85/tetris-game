@@ -25,7 +25,10 @@ export function GamePanel() {
     (stats: TetrisStats) => {
       setLastStats(stats);
       if (!uid || !profile) {
-        setSaveState({ status: "done", result: { ok: false, fallback: true } });
+        setSaveState({
+          status: "done",
+          result: { ok: false, fallback: true, error: "no-profile" },
+        });
         return;
       }
       setSaveState({ status: "saving" });
@@ -254,7 +257,11 @@ function SaveStatus({
   }
   if (saveState.status === "done") {
     if (!saveState.result.ok) {
-      return <p className="save-status warn">닉네임이 없어 기록을 저장하지 못했어요.</p>;
+      const message =
+        saveState.result.error === "no-profile"
+          ? "닉네임이 없어 기록을 저장하지 못했어요."
+          : "기록을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
+      return <p className="save-status warn">{message}</p>;
     }
     if (saveState.result.fallback) {
       return (

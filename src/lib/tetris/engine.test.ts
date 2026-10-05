@@ -158,4 +158,25 @@ describe("hold", () => {
     const twice = holdPiece(once, seededRng(8));
     expect(twice).toBe(once); // 변화 없음
   });
+
+  it("빈 홀드에서 새 블록이 스폰 자리와 겹치면 게임오버로 처리한다", () => {
+    const board: Board = createEmptyBoard();
+    // 스폰 영역(최상단 두 행)을 가득 채워, 어떤 블록이 스폰돼도 충돌하게 만든다
+    for (let x = 0; x < BOARD_WIDTH; x++) {
+      board[0][x] = "I" as PieceType;
+      board[1][x] = "I" as PieceType;
+    }
+    const state = {
+      ...createInitialState(seededRng(9)),
+      board,
+      active: { type: "T", rotation: 0, x: 3, y: 0 } as ActivePiece,
+      hold: null,
+      holdUsed: false,
+      phase: "playing" as const,
+    };
+    const held = holdPiece(state, seededRng(9));
+    expect(held.phase).toBe("gameover");
+    expect(held.active).toBeNull();
+    expect(held.hold).toBe("T"); // 보관은 반영됨
+  });
 });

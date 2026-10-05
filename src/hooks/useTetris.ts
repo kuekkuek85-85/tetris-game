@@ -176,6 +176,13 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
       delete repeatTimers[key];
     };
 
+    // 탭 전환·포커스 상실 시 keyup 이 전달되지 않아 타이머가 남을 수 있으므로 모두 정리
+    const stopAllRepeat = () => {
+      for (const key of Array.from(held)) {
+        stopRepeat(key);
+      }
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case "ArrowLeft":
@@ -238,11 +245,19 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
       }
     };
 
+    const onVisibilityChange = () => {
+      if (document.hidden) stopAllRepeat();
+    };
+
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", stopAllRepeat);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", stopAllRepeat);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       Object.values(delayTimers).forEach(clearTimeout);
       Object.values(repeatTimers).forEach(clearInterval);
     };

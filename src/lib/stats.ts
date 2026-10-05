@@ -1,4 +1,4 @@
-import type { GameRecord, PlayerAggregate } from "@/lib/records";
+import type { GameRecord } from "@/lib/records";
 
 export interface ClassStat {
   classId: string;
@@ -8,62 +8,42 @@ export interface ClassStat {
   bestScore: number;
 }
 
-/** 반별 통계(평균·최고·참여 수)를 계산한다. */
-export function computeClassStats(
-  players: PlayerAggregate[],
-  games: GameRecord[],
-): ClassStat[] {
-  const map = new Map<string, ClassStat>();
+const keyOf = (classId: string) => classId || "(미지정)";
 
-  const keyOf = (classId: string) => classId || "(미지정)";
+/**
+ * 반별 통계(참여 수·게임 수·평균·최고)를 games 기록만으로 계산한다.
+ * 참여 수는 반별 고유 uid 수로 집계한다. (players 컬렉션은 보안 규칙상 전체 조회 불가)
+ */
+export function computeClassStats(games: GameRecord[]): ClassStat[] {
+  const uids = new Map<string, Set<string>>();
+  const agg = new Map<string, { sum: number; count: number; best: number }>();
 
-  for (const p of players) {
-    const key = keyOf(p.classId);
-    const stat = map.get(key) ?? {
-      classId: key,
-      playerCount: 0,
-      gameCount: 0,
-      avgScore: 0,
-      bestScore: 0,
-    };
-    stat.playerCount += 1;
-    stat.bestScore = Math.max(stat.bestScore, p.bestScore);
-    map.set(key, stat);
-  }
-
-  // 게임 수 + 평균 점수 (게임 기록 기준)
-  const scoreSum = new Map<string, { sum: number; count: number }>();
   for (const g of games) {
     const key = keyOf(g.classId);
-    const agg = scoreSum.get(key) ?? { sum: 0, count: 0 };
-    agg.sum += g.score;
-    agg.count += 1;
-    scoreSum.set(key, agg);
+    if (!uids.has(key)) uids.set(key, new Set());
+    uids.get(key)!.add(g.uid);
 
-    if (!map.has(key)) {
-      map.set(key, {
-        classId: key,
-        playerCount: 0,
-        gameCount: 0,
-        avgScore: 0,
-        bestScore: 0,
-      });
-    }
-    const stat = map.get(key)!;
-    stat.gameCount += 1;
-    stat.bestScore = Math.max(stat.bestScore, g.score);
+    const a = agg.get(key) ?? { sum: 0, count: 0, best: 0 };
+    a.sum += g.score;
+    a.count += 1;
+    a.best = Math.max(a.best, g.score);
+    agg.set(key, a);
   }
 
-  for (const [key, agg] of scoreSum) {
-    const stat = map.get(key);
-    if (stat) {
-      stat.avgScore = agg.count > 0 ? Math.round(agg.sum / agg.count) : 0;
-    }
-  }
+  return Array.from(agg.entries())
+    .map(([classId, a]) => ({
+      classId,
+      playerCount: uids.get(classId)?.size ?? 0,
+      gameCount: a.count,
+      avgScore: a.count > 0 ? Math.round(a.sum / a.count) : 0,
+      bestScore: a.best,
+    }))
+    .sort((a, b) => a.classId.localeCompare(b.classId, "ko"));
+}
 
-  return Array.from(map.values()).sort((a, b) =>
-    a.classId.localeCompare(b.classId, "ko"),
-  );
+/** 전체 참여 학생 수(고유 uid). */
+export function countParticipants(games: GameRecord[]): number {
+  return new Set(games.map((g) => g.uid)).size;
 }
 
 /** 게임 기록을 CSV 문자열로 변환한다. */
