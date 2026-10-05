@@ -17,7 +17,7 @@ type SaveState =
   | { status: "done"; result: SaveResult };
 
 export function GamePanel() {
-  const { uid, profile, firebaseEnabled } = usePlayer();
+  const { uid, profile, firebaseEnabled, isSwitching, setGameActive } = usePlayer();
   const [lastStats, setLastStats] = useState<TetrisStats | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
 
@@ -66,11 +66,19 @@ export function GamePanel() {
     pause,
   } = useTetris({ onGameOver: handleGameOver });
 
+  // 게임 진행 여부를 Provider 에 보고 (전환 가능 여부 판단용)
+  useEffect(() => {
+    setGameActive(state.phase === "playing" || state.phase === "paused");
+    return () => setGameActive(false);
+  }, [state.phase, setGameActive]);
+
   const handleStart = useCallback(() => {
+    // 학생 전환 진행 중에는 새 게임을 시작하지 않는다(전환 구간에 게임오버·저장이 생기지 않도록)
+    if (isSwitching) return;
     setLastStats(null);
     setSaveState({ status: "idle" });
     start();
-  }, [start]);
+  }, [start, isSwitching]);
 
   // 스와이프 제스처 (터치)
   const boardWrapRef = useRef<HTMLDivElement>(null);
@@ -160,7 +168,12 @@ export function GamePanel() {
               <p className="overlay-sub">
                 {profile ? `${profile.name} 님, 준비되었나요?` : "준비되었나요?"}
               </p>
-              <button type="button" className="primary-btn" onClick={handleStart}>
+              <button
+                type="button"
+                className="primary-btn"
+                onClick={handleStart}
+                disabled={isSwitching}
+              >
                 시작하기
               </button>
               <KeyGuide />
@@ -199,7 +212,12 @@ export function GamePanel() {
               </ul>
               <SaveStatus saveState={saveState} firebaseEnabled={firebaseEnabled} />
               <div className="overlay-actions">
-                <button type="button" className="primary-btn" onClick={handleStart}>
+                <button
+                  type="button"
+                  className="primary-btn"
+                  onClick={handleStart}
+                  disabled={isSwitching}
+                >
                   다시하기
                 </button>
                 <Link className="secondary-btn" href="/leaderboard">

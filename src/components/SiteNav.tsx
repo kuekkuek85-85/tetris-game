@@ -3,7 +3,12 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { SWITCH_ERR_PENDING, SWITCH_ERR_SAVING, usePlayer } from "./PlayerProvider";
+import {
+  SWITCH_ERR_GAME_ACTIVE,
+  SWITCH_ERR_PENDING,
+  SWITCH_ERR_SAVING,
+  usePlayer,
+} from "./PlayerProvider";
 
 const LINKS = [
   { href: "/", label: "게임" },
@@ -31,11 +36,13 @@ export function SiteNav() {
     } catch (err) {
       const code = err instanceof Error ? err.message : "";
       const message =
-        code === SWITCH_ERR_SAVING
-          ? "기록을 저장하는 중이에요. 저장이 끝난 뒤 다시 시도해 주세요."
-          : code === SWITCH_ERR_PENDING
-            ? "아직 서버에 전송되지 않은 기록이 있어요. 네트워크 연결을 확인한 뒤 다시 시도해 주세요."
-            : "학생 전환에 실패했어요(네트워크 문제일 수 있음). 잠시 후 다시 시도해 주세요.";
+        code === SWITCH_ERR_GAME_ACTIVE
+          ? "게임이 진행 중이에요. 게임을 끝낸 뒤 학생 전환을 해주세요."
+          : code === SWITCH_ERR_SAVING
+            ? "기록을 저장하는 중이에요. 저장이 끝난 뒤 다시 시도해 주세요."
+            : code === SWITCH_ERR_PENDING
+              ? "아직 서버에 전송되지 않은 기록이 있어요. 네트워크 연결을 확인한 뒤 다시 시도해 주세요."
+              : "학생 전환에 실패했어요(네트워크 문제일 수 있음). 잠시 후 다시 시도해 주세요.";
       window.alert(message);
     } finally {
       setSwitching(false);

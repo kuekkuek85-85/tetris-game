@@ -8,6 +8,9 @@ const STORAGE_KEYS = {
   studentNo: "tetris.studentNo",
 } as const;
 
+// 구버전(닉네임 방식)에서 쓰던 키 — 업그레이드 감지/정리에만 사용
+const LEGACY_NICKNAME_KEY = "tetris.nickname";
+
 export interface PlayerProfile {
   /** 성명(표시 이름) */
   name: string;
@@ -82,12 +85,22 @@ export function saveProfile(profile: PlayerProfile): void {
   );
 }
 
-/** 저장된 프로필(학번·성명·반·번호)을 지운다. (학생 전환용) */
+/** 저장된 프로필(학번·성명·반·번호)과 구버전 흔적을 지운다. (학생 전환/레거시 정리용) */
 export function clearProfile(): void {
   safeRemove(STORAGE_KEYS.name);
   safeRemove(STORAGE_KEYS.studentId);
   safeRemove(STORAGE_KEYS.classId);
   safeRemove(STORAGE_KEYS.studentNo);
+  safeRemove(LEGACY_NICKNAME_KEY);
+}
+
+/**
+ * 구버전(닉네임) 프로필 흔적만 남아 있는 상태인지. (name/studentId 가 없어 loadProfile 은 null)
+ * 이 경우 이전 사용자의 익명 UID 를 그대로 쓰면 새 학생 기록이 그 UID 로 병합되므로,
+ * 호출부에서 UID 를 교체한 뒤 새 신원을 받아야 한다.
+ */
+export function hasLegacyProfile(): boolean {
+  return loadProfile() === null && safeGet(LEGACY_NICKNAME_KEY) !== null;
 }
 
 /** 로컬 UID 를 새로 발급한다(기존 것 폐기). 로컬 전용 모드에서 기록이 섞이지 않도록. */
