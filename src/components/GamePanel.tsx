@@ -285,6 +285,9 @@ export function GamePanel() {
               ))}
             </div>
           </section>
+        </aside>
+
+        <aside className="side-col shortcuts-col">
           <section className="panel-box shortcuts">
             <h2 className="panel-title">단축키</h2>
             <ShortcutGuide />
