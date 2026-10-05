@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   BOARD_WIDTH,
+  GRAVITY_BASE_MS,
+  GRAVITY_MIN_MS,
+  gravityIntervalMs,
   ITEM_GAUGE_MAX,
   ITEM_MAX_HELD,
   LINES_PER_LEVEL,
+  SLOW_DURATION_MS,
   TOTAL_HEIGHT,
 } from "./constants";
 import {
@@ -62,11 +66,22 @@ describe("scoring / level", () => {
     expect(lineClearScore(0, 9)).toBe(0);
   });
 
-  it("레벨은 10줄마다 1씩 오른다", () => {
+  it("레벨은 LINES_PER_LEVEL 줄마다 1씩 오른다", () => {
     expect(levelForLines(0)).toBe(1);
-    expect(levelForLines(9)).toBe(1);
+    expect(levelForLines(LINES_PER_LEVEL - 1)).toBe(1);
     expect(levelForLines(LINES_PER_LEVEL)).toBe(2);
-    expect(levelForLines(25)).toBe(3);
+    expect(levelForLines(LINES_PER_LEVEL * 2 + 1)).toBe(3);
+  });
+});
+
+describe("gravity / 난이도", () => {
+  it("레벨이 오를수록 낙하 간격이 짧아지고 하한을 지킨다", () => {
+    expect(gravityIntervalMs(1)).toBe(GRAVITY_BASE_MS);
+    // 레벨이 오르면 엄격히 더 빨라진다
+    expect(gravityIntervalMs(2)).toBeLessThan(gravityIntervalMs(1));
+    expect(gravityIntervalMs(5)).toBeLessThan(gravityIntervalMs(4));
+    // 아주 높은 레벨에서도 하한 아래로 내려가지 않는다
+    expect(gravityIntervalMs(100)).toBe(GRAVITY_MIN_MS);
   });
 });
 
@@ -308,6 +323,20 @@ describe("items", () => {
     expect(used.phase).toBe("gameover");
     expect(used.active).toBeNull();
     expect(used.items).toHaveLength(0); // 아이템은 소비됨
+  });
+
+  it("슬로우는 보드를 바꾸지 않고 잔여 시간만 설정한다", () => {
+    const base = createInitialState(seededRng(6));
+    const state = {
+      ...base,
+      phase: "playing" as const,
+      items: ["slow", "bomb"] as ItemType[],
+    };
+    const used = consumeItem(state, 0);
+    expect(used.slowMsRemaining).toBe(SLOW_DURATION_MS);
+    expect(used.board).toBe(state.board); // 보드는 그대로(참조 동일)
+    expect(used.items).toEqual(["bomb"]); // 선택한 슬로우만 소비
+    expect(used.phase).toBe("playing");
   });
 
   it("아이템이 블록과 충돌을 만들지 않으면(합법적 y<0 포함) top-out 하지 않는다", () => {

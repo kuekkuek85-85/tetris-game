@@ -110,18 +110,24 @@ export const KICKS_I: KickTable = {
   "0>3": [[0, 0], [-1, 0], [2, 0], [-1, -2], [2, 1]],
 };
 
+/** 레벨 1의 낙하 간격(ms). 값이 작을수록 처음부터 빠르다. */
+export const GRAVITY_BASE_MS = 650;
+/** 레벨이 1 오를 때 낙하 간격에 곱하는 가속 계수(작을수록 급가속). */
+export const GRAVITY_DECAY = 0.8;
+/** 낙하 간격 하한(ms). 이보다 더 빨라지지 않는다. */
+export const GRAVITY_MIN_MS = 50;
+
 /** 레벨당 블록이 한 칸 떨어지는 간격(ms). 레벨이 오를수록 빨라진다. */
 export function gravityIntervalMs(level: number): number {
-  // 레벨 1: ~800ms, 레벨이 오를수록 가속, 최소 하한선 50ms
-  const interval = 800 * Math.pow(0.82, Math.max(0, level - 1));
-  return Math.max(50, Math.round(interval));
+  const interval = GRAVITY_BASE_MS * Math.pow(GRAVITY_DECAY, Math.max(0, level - 1));
+  return Math.max(GRAVITY_MIN_MS, Math.round(interval));
 }
 
 /** 다음 블록 미리보기 개수 */
 export const NEXT_COUNT = 5;
 
 /** 레벨 상승에 필요한 라인 수 */
-export const LINES_PER_LEVEL = 10;
+export const LINES_PER_LEVEL = 8;
 
 /** 아이템 게이지가 가득 차는 값(지운 라인 누적). 도달 시 아이템 1개 획득 */
 export const ITEM_GAUGE_MAX = 8;
@@ -129,6 +135,10 @@ export const ITEM_GAUGE_MAX = 8;
 export const ITEM_MAX_HELD = 3;
 /** 폭탄이 제거하는 바닥 줄 수 */
 export const BOMB_ROWS = 2;
+/** 슬로우 아이템 지속 시간(ms) */
+export const SLOW_DURATION_MS = 10000;
+/** 슬로우 동안 낙하 간격에 곱하는 배수(클수록 더 느림) */
+export const SLOW_FACTOR = 2.4;
 
 /** 아이템 표시 정보 */
 export const ITEM_INFO: Record<
@@ -137,6 +147,7 @@ export const ITEM_INFO: Record<
 > = {
   bomb: { label: "폭탄", glyph: "💣", hint: "바닥 2줄 제거" },
   clearLine: { label: "라인 소거", glyph: "✂️", hint: "가장 찬 줄 제거" },
+  slow: { label: "슬로우", glyph: "🐢", hint: "잠시 느리게" },
 };
 
 export const ROTATIONS: Rotation[] = [0, 1, 2, 3];

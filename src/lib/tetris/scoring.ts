@@ -19,7 +19,7 @@ export function hardDropScore(cells: number): number {
   return Math.max(0, cells) * 2;
 }
 
-/** 누적 삭제 라인 수에 해당하는 레벨 (10줄마다 +1, 1부터 시작) */
+/** 누적 삭제 라인 수에 해당하는 레벨 (LINES_PER_LEVEL 줄마다 +1, 1부터 시작) */
 export function levelForLines(totalLines: number): number {
   return Math.floor(totalLines / LINES_PER_LEVEL) + 1;
 }

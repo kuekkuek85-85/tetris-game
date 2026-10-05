@@ -185,7 +185,7 @@ export function GamePanel() {
                     disabled={!item || state.phase !== "playing"}
                     title={
                       item
-                        ? `${ITEM_INFO[item].label} — ${ITEM_INFO[item].hint}${slot < 2 ? ` (키 ${slot + 1})` : ""}`
+                        ? `${ITEM_INFO[item].label} — ${ITEM_INFO[item].hint} (키 ${slot + 1})`
                         : "빈 슬롯"
                     }
                     aria-label={item ? ITEM_INFO[item].label : "빈 슬롯"}
@@ -195,6 +195,11 @@ export function GamePanel() {
                 );
               })}
             </div>
+            {state.slowMsRemaining > 0 && (
+              <p className="item-slow-active" aria-live="polite">
+                🐢 슬로우 {Math.ceil(state.slowMsRemaining / 1000)}초
+              </p>
+            )}
           </section>
         </aside>
 
@@ -345,7 +350,7 @@ function KeyGuide() {
       <li>← → 이동 · ↑ 회전</li>
       <li>↓ 소프트드롭 · Space 하드드롭</li>
       <li>Shift/C 홀드 · P/Esc 일시정지</li>
-      <li>1/2 아이템 사용 💣✂️</li>
+      <li>1/2/3 아이템 사용 💣✂️🐢</li>
     </ul>
   );
 }

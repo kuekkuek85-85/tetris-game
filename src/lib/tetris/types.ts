@@ -25,7 +25,7 @@ export interface ActivePiece {
 export type GamePhase = "ready" | "playing" | "paused" | "gameover";
 
 /** 사용 가능한 아이템 종류 */
-export type ItemType = "bomb" | "clearLine";
+export type ItemType = "bomb" | "clearLine" | "slow";
 
 export interface GameState {
   board: Board;
@@ -47,6 +47,8 @@ export interface GameState {
   itemGauge: number;
   /** 보유 중인 아이템들 (최대 ITEM_MAX_HELD) */
   items: ItemType[];
+  /** 슬로우 아이템 남은 시간(ms). 0보다 크면 낙하 속도가 느려진다 */
+  slowMsRemaining: number;
 }
 
 /** 라인 클리어 결과 요약 (점수 계산용) */

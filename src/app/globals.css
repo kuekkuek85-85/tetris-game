@@ -356,6 +356,14 @@ button:disabled {
   background: var(--accent);
 }
 
+.item-slow-active {
+  margin: 0.4rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--accent);
+}
+
 /* ===== Board ===== */
 .board-wrap {
   position: relative;

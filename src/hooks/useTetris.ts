@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { gravityIntervalMs } from "@/lib/tetris/constants";
+import { gravityIntervalMs, SLOW_FACTOR } from "@/lib/tetris/constants";
 import {
   createInitialState,
   hardDrop,
@@ -97,10 +97,25 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
         const delta = Math.min(timestamp - prev, MAX_FRAME_DELTA);
         gravityAccRef.current += delta;
 
-        // 경과 시간 누적(상한 적용된 delta 사용)
-        let working = { ...current, elapsedMs: current.elapsedMs + delta };
+        // 경과 시간 누적 + 슬로우 아이템 잔여 시간 감소(상한 적용된 delta 사용)
+        const wasSlow = current.slowMsRemaining > 0;
+        let working = {
+          ...current,
+          elapsedMs: current.elapsedMs + delta,
+          slowMsRemaining: Math.max(0, current.slowMsRemaining - delta),
+        };
+        const isSlow = working.slowMsRemaining > 0;
 
-        const interval = gravityIntervalMs(working.level);
+        // 슬로우가 끝나는 프레임에는, 느린 간격 기준으로 쌓인 누적 시간을
+        // 일반 간격으로 처리하면 한 프레임에 여러 칸이 급락할 수 있다.
+        // 전환 시 누적을 비워(최대 한 틱 분량 손실) 급락을 막는다.
+        if (wasSlow && !isSlow) {
+          gravityAccRef.current = 0;
+        }
+
+        // 슬로우가 활성화된 동안에는 낙하 간격을 늘려 느리게 한다
+        const baseInterval = gravityIntervalMs(working.level);
+        const interval = isSlow ? Math.round(baseInterval * SLOW_FACTOR) : baseInterval;
         while (gravityAccRef.current >= interval) {
           gravityAccRef.current -= interval;
           working = tick(working);
@@ -259,6 +274,10 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
         case "2":
           e.preventDefault();
           if (!e.repeat) activateItem(1);
+          break;
+        case "3":
+          e.preventDefault();
+          if (!e.repeat) activateItem(2);
           break;
         default:
           break;
