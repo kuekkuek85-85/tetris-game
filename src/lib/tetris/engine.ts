@@ -379,15 +379,29 @@ export function applyClearLine(board: Board): Board {
 }
 
 /**
- * 보유 아이템 1개를 사용한다. playing 상태에서만, 해당 아이템을 보유했을 때만 동작.
+ * 지정한 슬롯의 아이템 1개를 사용한다. playing 상태에서만, 해당 슬롯에 아이템이 있을 때만 동작.
+ * (같은 종류 아이템이 여러 칸에 있을 수 있으므로 종류가 아닌 슬롯 인덱스로 소비한다.)
  */
-export function consumeItem(state: GameState, item: ItemType): GameState {
+export function consumeItem(state: GameState, slot: number): GameState {
   if (state.phase !== "playing") return state;
-  const idx = state.items.indexOf(item);
-  if (idx < 0) return state;
+  const item = state.items[slot];
+  if (!item) return state;
 
   const board = item === "bomb" ? applyBomb(state.board) : applyClearLine(state.board);
   const items = [...state.items];
-  items.splice(idx, 1);
-  return { ...state, board, items };
+  items.splice(slot, 1);
+
+  // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 올라올 수 있다.
+  // 그대로 두면 collides(board, active) 가 참이 되어 다음 낙하/고정에서 보드가 깨지므로,
+  // 충돌이 사라질 때까지 활성 블록을 위로 밀어 올려 유효한 위치로 되돌린다.
+  let active = state.active;
+  if (active) {
+    let guard = 0;
+    while (collides(board, active) && guard < TOTAL_HEIGHT) {
+      active = { ...active, y: active.y - 1 };
+      guard += 1;
+    }
+  }
+
+  return { ...state, board, items, active };
 }

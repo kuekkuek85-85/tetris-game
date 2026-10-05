@@ -14,7 +14,7 @@ import {
   tryRotate,
   consumeItem,
 } from "@/lib/tetris/engine";
-import type { GameState, ItemType } from "@/lib/tetris/types";
+import type { GameState } from "@/lib/tetris/types";
 
 export interface TetrisStats {
   score: number;
@@ -176,8 +176,7 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
 
   const activateItem = useCallback(
     (slot: number) => {
-      const item: ItemType | undefined = stateRef.current.items[slot];
-      if (item) update(consumeItem(stateRef.current, item));
+      update(consumeItem(stateRef.current, slot));
     },
     [update],
   );

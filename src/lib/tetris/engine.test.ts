@@ -234,13 +234,49 @@ describe("items", () => {
     expect(after.some((row) => row.some((c) => c === "I"))).toBe(false);
   });
 
-  it("consumeItem 은 보유한 아이템만 소비한다", () => {
+  it("consumeItem 은 지정한 슬롯의 아이템만 소비한다", () => {
     const base = createInitialState(seededRng(2));
     const state = { ...base, phase: "playing" as const, items: ["bomb"] as ItemType[] };
-    const used = consumeItem(state, "bomb");
+    const used = consumeItem(state, 0);
     expect(used.items).toHaveLength(0);
-    // 보유하지 않은 아이템은 변화 없음
-    const noop = consumeItem(used, "clearLine");
+    // 빈 슬롯을 지정하면 변화 없음
+    const noop = consumeItem(used, 0);
     expect(noop).toBe(used);
+  });
+
+  it("같은 종류가 여러 칸에 있어도 선택한 슬롯을 소비한다", () => {
+    const base = createInitialState(seededRng(2));
+    // [bomb, clearLine, bomb] 에서 슬롯 2(세 번째)를 사용 → [bomb, clearLine] 가 남아야 한다
+    const state = {
+      ...base,
+      phase: "playing" as const,
+      items: ["bomb", "clearLine", "bomb"] as ItemType[],
+    };
+    const used = consumeItem(state, 2);
+    expect(used.items).toEqual(["bomb", "clearLine"]);
+  });
+
+  it("아이템으로 줄이 붕괴해도 활성 블록이 충돌하지 않는 위치로 이동한다", () => {
+    const base = createInitialState(seededRng(3));
+    const board = createEmptyBoard();
+    const bottom = TOTAL_HEIGHT - 1;
+    // 바닥 근처를 채워, 폭탄으로 줄이 아래로 밀려 내려오게 한다
+    for (let x = 0; x < BOARD_WIDTH; x++) {
+      board[bottom][x] = "I" as PieceType;
+      board[bottom - 1][x] = "O" as PieceType;
+    }
+    // 활성 블록을 쌓인 블록 바로 위(붕괴 후 셀이 올라올 자리)에 둔다
+    const active: ActivePiece = { type: "O", rotation: 0, x: 3, y: bottom - 3 };
+    const state = {
+      ...base,
+      board,
+      active,
+      phase: "playing" as const,
+      items: ["bomb"] as ItemType[],
+    };
+    const used = consumeItem(state, 0);
+    // 적용 후 활성 블록은 보드와 충돌하지 않아야 한다
+    expect(used.active).not.toBeNull();
+    expect(collides(used.board, used.active!)).toBe(false);
   });
 });
