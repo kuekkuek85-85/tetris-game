@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { usePlayer } from "./PlayerProvider";
+import { SWITCH_ERR_PENDING, usePlayer } from "./PlayerProvider";
 
 const LINKS = [
   { href: "/", label: "게임" },
@@ -28,10 +28,12 @@ export function SiteNav() {
     try {
       await switchStudent();
       router.push("/");
-    } catch {
-      window.alert(
-        "학생 전환에 실패했어요(네트워크 문제일 수 있음). 잠시 후 다시 시도해 주세요.",
-      );
+    } catch (err) {
+      const message =
+        err instanceof Error && err.message === SWITCH_ERR_PENDING
+          ? "아직 서버에 전송되지 않은 기록이 있어요. 네트워크 연결을 확인한 뒤 다시 시도해 주세요."
+          : "학생 전환에 실패했어요(네트워크 문제일 수 있음). 잠시 후 다시 시도해 주세요.";
+      window.alert(message);
     } finally {
       setSwitching(false);
     }

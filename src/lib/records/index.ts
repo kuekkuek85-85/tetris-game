@@ -120,6 +120,11 @@ export async function flushPending(authUid?: string): Promise<number> {
   return flushedCount;
 }
 
+/** 아직 서버로 전송되지 못한 대기 기록이 남아 있는지. (학생 전환 안전성 판단용) */
+export function hasPendingRecords(): boolean {
+  return localGetPending().length > 0;
+}
+
 function pendingToInput(p: PendingGame): SaveGameInput {
   return {
     uid: p.uid,

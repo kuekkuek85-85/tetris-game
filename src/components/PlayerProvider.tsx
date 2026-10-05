@@ -11,8 +11,11 @@ import {
 } from "react";
 import { ensureAnonymousUid, signOutAnonymous } from "@/lib/firebase/auth";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
-import { flushPending } from "@/lib/records";
+import { flushPending, hasPendingRecords } from "@/lib/records";
 import { localRebindPending } from "@/lib/records/localStore";
+
+/** 전환 실패 사유 — 아직 전송되지 못한 대기 기록이 남아 있음 */
+export const SWITCH_ERR_PENDING = "PENDING_NOT_EMPTY";
 import {
   clearProfile,
   loadProfile,
@@ -68,18 +71,24 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
 
   const switchStudent = useCallback(async () => {
     // 1) 이전 학생의 대기 기록을 "아직 그 학생으로 인증된 상태에서" 먼저 전송한다.
-    //    (전환 후에는 그 UID 로 다시 인증할 수 없어 전송·귀속이 불가능)
+    //    (전환 후에는 그 UID 로 다시 인증할 수 없어 전송·귀속이 영구 불가능)
     if (uid) {
       try {
         await flushPending(uid);
       } catch {
-        /* 전송 실패는 전환을 막지 않는다(남은 기록은 이전 UID 에 귀속되어 섞이지 않음) */
+        /* 네트워크 등 전송 실패 — 아래 잔존 검사에서 전환을 중단시킨다 */
       }
     }
-    // 2) 익명 로그아웃 — 실패하면 전환을 중단한다(이전 UID 가 남은 채 진행하면 기록이 섞임).
+    // 2) 아직 전송되지 못한 대기 기록이 남아 있으면 전환을 중단한다.
+    //    그대로 로그아웃하면 그 기록을 올릴 유일한 자격이 사라져 영구 유실되고,
+    //    다음 학생이 그 기록을 흡수(섞임)할 위험이 있다. → 네트워크 회복 후 재시도 유도.
+    if (hasPendingRecords()) {
+      throw new Error(SWITCH_ERR_PENDING);
+    }
+    // 3) 익명 로그아웃 — 실패하면 전환을 중단한다(이전 UID 가 남은 채 진행하면 기록이 섞임).
     //    여기서 throw 되면 프로필/UID 를 건드리지 않았으므로 이전 상태가 유지된다.
     await signOutAnonymous();
-    // 3) 프로필 제거 + 로컬 UID 교체 + 새 UID 발급 → 다음 학생이 깨끗한 신원으로 시작
+    // 4) 프로필 제거 + 로컬 UID 교체 + 새 UID 발급 → 다음 학생이 깨끗한 신원으로 시작
     clearProfile();
     rotateLocalUid();
     const freshUid = await ensureAnonymousUid();
