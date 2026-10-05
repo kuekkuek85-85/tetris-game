@@ -119,6 +119,7 @@ function pendingToInput(p: PendingGame): SaveGameInput {
   return {
     uid: p.uid,
     nickname: p.nickname,
+    studentId: p.studentId,
     classId: p.classId,
     studentNo: p.studentNo,
     score: p.score,
@@ -209,6 +210,7 @@ function foldPendingIntoAggregate(
     remote ?? {
       uid,
       nickname: mine[0].nickname,
+      studentId: mine[0].studentId,
       classId: mine[0].classId,
       studentNo: mine[0].studentNo,
       bestScore: 0,

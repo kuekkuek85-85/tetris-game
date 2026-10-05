@@ -1,15 +1,21 @@
-// 익명 식별 + 닉네임/반/번호 로컬 보관
+// 익명 식별 + 학번/성명 로컬 보관
 
 const STORAGE_KEYS = {
   localUid: "tetris.localUid",
-  nickname: "tetris.nickname",
+  name: "tetris.name",
+  studentId: "tetris.studentId",
   classId: "tetris.classId",
   studentNo: "tetris.studentNo",
 } as const;
 
 export interface PlayerProfile {
-  nickname: string;
+  /** 성명(표시 이름) */
+  name: string;
+  /** 학번 5자리 */
+  studentId: string;
+  /** 학번에서 추출한 반 식별값 "학년-반" */
   classId: string;
+  /** 학번에서 추출한 번호 */
   studentNo: number | null;
 }
 
@@ -45,18 +51,21 @@ export function getOrCreateLocalUid(): string {
 }
 
 export function loadProfile(): PlayerProfile | null {
-  const nickname = safeGet(STORAGE_KEYS.nickname);
-  if (!nickname) return null;
+  const name = safeGet(STORAGE_KEYS.name);
+  const studentId = safeGet(STORAGE_KEYS.studentId);
+  if (!name || !studentId) return null;
   const studentNoRaw = safeGet(STORAGE_KEYS.studentNo);
   return {
-    nickname,
+    name,
+    studentId,
     classId: safeGet(STORAGE_KEYS.classId) ?? "",
     studentNo: studentNoRaw ? Number(studentNoRaw) : null,
   };
 }
 
 export function saveProfile(profile: PlayerProfile): void {
-  safeSet(STORAGE_KEYS.nickname, profile.nickname);
+  safeSet(STORAGE_KEYS.name, profile.name);
+  safeSet(STORAGE_KEYS.studentId, profile.studentId);
   safeSet(STORAGE_KEYS.classId, profile.classId);
   safeSet(
     STORAGE_KEYS.studentNo,

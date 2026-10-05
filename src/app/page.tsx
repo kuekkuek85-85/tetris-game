@@ -1,7 +1,7 @@
 "use client";
 
 import { GamePanel } from "@/components/GamePanel";
-import { NicknameForm } from "@/components/NicknameForm";
+import { StartForm } from "@/components/StartForm";
 import { usePlayer } from "@/components/PlayerProvider";
 
 export default function HomePage() {
@@ -18,7 +18,7 @@ export default function HomePage() {
   if (!profile) {
     return (
       <div className="centered-state">
-        <NicknameForm />
+        <StartForm />
       </div>
     );
   }

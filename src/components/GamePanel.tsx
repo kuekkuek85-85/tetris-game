@@ -34,7 +34,8 @@ export function GamePanel() {
       setSaveState({ status: "saving" });
       saveGame({
         uid,
-        nickname: profile.nickname,
+        nickname: profile.name, // 표시 이름(성명)을 nickname 필드로 저장
+        studentId: profile.studentId,
         classId: profile.classId,
         studentNo: profile.studentNo,
         score: stats.score,
@@ -157,7 +158,7 @@ export function GamePanel() {
             <Overlay>
               <h2>테트리스</h2>
               <p className="overlay-sub">
-                {profile ? `${profile.nickname} 님, 준비되었나요?` : "준비되었나요?"}
+                {profile ? `${profile.name} 님, 준비되었나요?` : "준비되었나요?"}
               </p>
               <button type="button" className="primary-btn" onClick={handleStart}>
                 시작하기

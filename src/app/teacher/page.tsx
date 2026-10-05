@@ -159,7 +159,8 @@ export default function TeacherPage() {
                           <table>
                             <thead>
                               <tr>
-                                <th>닉네임</th>
+                                <th>학번</th>
+                                <th>성명</th>
                                 <th>점수</th>
                                 <th>라인</th>
                                 <th>레벨</th>
@@ -169,6 +170,7 @@ export default function TeacherPage() {
                             <tbody>
                               {classGames.map((g) => (
                                 <tr key={g.id}>
+                                  <td>{g.studentId}</td>
                                   <td>{g.nickname}</td>
                                   <td>{formatNumber(g.score)}</td>
                                   <td>{g.lines}</td>

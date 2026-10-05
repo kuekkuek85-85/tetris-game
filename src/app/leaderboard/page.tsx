@@ -71,7 +71,7 @@ export default function LeaderboardPage() {
             <thead>
               <tr>
                 <th>순위</th>
-                <th>닉네임</th>
+                <th>성명</th>
                 <th>점수</th>
                 <th>라인</th>
                 <th>레벨</th>

@@ -61,6 +61,7 @@ export async function fsSaveGame(
     tx.set(gameRef, {
       uid: input.uid,
       nickname: input.nickname,
+      studentId: input.studentId,
       classId: input.classId,
       score: input.score,
       lines: input.lines,
@@ -75,6 +76,7 @@ export async function fsSaveGame(
     if (!playerSnap.exists()) {
       tx.set(playerRef, {
         nickname: input.nickname,
+        studentId: input.studentId,
         classId: input.classId,
         studentNo: input.studentNo,
         bestScore: input.score,
@@ -89,9 +91,10 @@ export async function fsSaveGame(
 
     const prev = playerSnap.data();
     if (alreadyCounted) {
-      // 닉네임/반 등 표시 정보만 최신화하고 누적치는 그대로 둔다
+      // 성명/학번/반 등 표시 정보만 최신화하고 누적치는 그대로 둔다
       tx.update(playerRef, {
         nickname: input.nickname,
+        studentId: input.studentId,
         classId: input.classId,
         studentNo: input.studentNo,
       });
@@ -99,6 +102,7 @@ export async function fsSaveGame(
     }
     tx.update(playerRef, {
       nickname: input.nickname,
+      studentId: input.studentId,
       classId: input.classId,
       studentNo: input.studentNo,
       bestScore: Math.max((prev.bestScore as number) ?? 0, input.score),
@@ -120,6 +124,7 @@ export async function fsGetPlayer(
   return {
     uid,
     nickname: (d.nickname as string) ?? "",
+    studentId: (d.studentId as string) ?? "",
     classId: (d.classId as string) ?? "",
     studentNo: (d.studentNo as number | null) ?? null,
     bestScore: (d.bestScore as number) ?? 0,
@@ -145,6 +150,7 @@ function mapGame(id: string, d: Record<string, unknown>): GameRecord {
     id,
     uid: asString(d.uid),
     nickname: asString(d.nickname),
+    studentId: asString(d.studentId),
     classId: asString(d.classId),
     score: asNumber(d.score, 0),
     lines: asNumber(d.lines, 0),

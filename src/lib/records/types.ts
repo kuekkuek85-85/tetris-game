@@ -4,7 +4,10 @@
 export interface GameRecord {
   id?: string;
   uid: string;
+  /** 표시 이름(성명) — 리더보드/대시보드 표시용 */
   nickname: string;
+  /** 학번 5자리 (교사용 식별/CSV) */
+  studentId: string;
   classId: string;
   score: number;
   lines: number;
@@ -18,6 +21,7 @@ export interface GameRecord {
 export interface PlayerAggregate {
   uid: string;
   nickname: string;
+  studentId: string;
   classId: string;
   studentNo: number | null;
   bestScore: number;
@@ -31,7 +35,10 @@ export interface PlayerAggregate {
 /** 새 게임 저장 시 넘기는 입력 */
 export interface SaveGameInput {
   uid: string;
+  /** 성명(표시 이름) */
   nickname: string;
+  /** 학번 5자리 */
+  studentId: string;
   classId: string;
   studentNo: number | null;
   score: number;
