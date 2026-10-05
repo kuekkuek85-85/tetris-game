@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   BOARD_WIDTH,
+  GRAVITY_BASE_MS,
+  GRAVITY_MIN_MS,
+  gravityIntervalMs,
   ITEM_GAUGE_MAX,
   ITEM_MAX_HELD,
   LINES_PER_LEVEL,
@@ -62,11 +65,22 @@ describe("scoring / level", () => {
     expect(lineClearScore(0, 9)).toBe(0);
   });
 
-  it("레벨은 10줄마다 1씩 오른다", () => {
+  it("레벨은 LINES_PER_LEVEL 줄마다 1씩 오른다", () => {
     expect(levelForLines(0)).toBe(1);
-    expect(levelForLines(9)).toBe(1);
+    expect(levelForLines(LINES_PER_LEVEL - 1)).toBe(1);
     expect(levelForLines(LINES_PER_LEVEL)).toBe(2);
-    expect(levelForLines(25)).toBe(3);
+    expect(levelForLines(LINES_PER_LEVEL * 2 + 1)).toBe(3);
+  });
+});
+
+describe("gravity / 난이도", () => {
+  it("레벨이 오를수록 낙하 간격이 짧아지고 하한을 지킨다", () => {
+    expect(gravityIntervalMs(1)).toBe(GRAVITY_BASE_MS);
+    // 레벨이 오르면 엄격히 더 빨라진다
+    expect(gravityIntervalMs(2)).toBeLessThan(gravityIntervalMs(1));
+    expect(gravityIntervalMs(5)).toBeLessThan(gravityIntervalMs(4));
+    // 아주 높은 레벨에서도 하한 아래로 내려가지 않는다
+    expect(gravityIntervalMs(100)).toBe(GRAVITY_MIN_MS);
   });
 });
 
