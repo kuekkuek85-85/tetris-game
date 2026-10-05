@@ -520,6 +520,58 @@ button:disabled {
   line-height: 1.6;
 }
 
+/* ===== Shortcut guide (항상 표시) ===== */
+.shortcut-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.shortcut-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.shortcut-row dt {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.shortcut-row dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.shortcut-row kbd {
+  display: inline-block;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.35rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+.shortcut-sep {
+  margin: 0 0.1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 /* ===== Touch controls ===== */
 .touch-controls {
   display: none;
@@ -782,6 +834,11 @@ tbody tr.me {
 
   .touch-controls {
     display: flex;
+  }
+
+  /* 좁은 화면에서는 터치 컨트롤을 쓰므로 키보드 단축키 표는 숨긴다 */
+  .panel-box.shortcuts {
+    display: none;
   }
 
   .class-meta {
