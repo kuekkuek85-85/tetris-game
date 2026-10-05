@@ -75,10 +75,13 @@ export async function fsSaveGame(
     // 이미 이 게임이 집계에 반영되었다면(재시도) 집계는 건너뛴다
     const alreadyCounted = gameSnap.exists();
 
+    // 학번이 비어 있으면(레거시 기록) 기존 players.studentId 를 덮어쓰지 않는다.
+    const idField = studentId ? { studentId } : {};
+
     if (!playerSnap.exists()) {
       tx.set(playerRef, {
         nickname: input.nickname,
-        studentId, // 학번은 본인만 읽는 players 문서에만 저장
+        ...idField, // 학번은 본인만 읽는 players 문서에만 저장 (빈값이면 생략)
         classId: input.classId,
         studentNo: input.studentNo,
         bestScore: input.score,
@@ -96,7 +99,7 @@ export async function fsSaveGame(
       // 성명/학번/반 등 표시 정보만 최신화하고 누적치는 그대로 둔다
       tx.update(playerRef, {
         nickname: input.nickname,
-        studentId,
+        ...idField,
         classId: input.classId,
         studentNo: input.studentNo,
       });
@@ -104,7 +107,7 @@ export async function fsSaveGame(
     }
     tx.update(playerRef, {
       nickname: input.nickname,
-      studentId,
+      ...idField,
       classId: input.classId,
       studentNo: input.studentNo,
       bestScore: Math.max((prev.bestScore as number) ?? 0, input.score),

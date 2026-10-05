@@ -268,17 +268,31 @@ export async function getAllGames(): Promise<GameRecord[]> {
   return games.slice().sort((a, b) => b.playedAt - a.playedAt);
 }
 
-/**
- * 내 순위: games 를 플레이어별 최고 점수로 축약한 뒤 1-based 순위를 구한다.
- * (리더보드 표시와 동일한 기준이라 화면 순위와 일치한다.)
- */
-export async function getMyRank(
-  uid: string,
-  classId: string | null,
-): Promise<number | null> {
-  const ranked = bestPerUid(await collectAllGames(classId));
+/** 주어진 games 집합에서 uid 의 1-based 순위(없으면 null). best-per-uid 기준. */
+function rankOf(games: GameRecord[], uid: string): number | null {
+  const ranked = bestPerUid(games);
   const idx = ranked.findIndex((g) => g.uid === uid);
   return idx >= 0 ? idx + 1 : null;
+}
+
+export interface MyRanks {
+  overall: number | null;
+  classRank: number | null;
+}
+
+/**
+ * 전체 순위와 우리 반 순위를 한 번의 games 조회로 함께 계산한다.
+ * (전체를 한 번만 읽고 반 순위는 메모리에서 필터링 — 중복 조회/비용 방지)
+ */
+export async function getRanks(
+  uid: string,
+  classId: string | null,
+): Promise<MyRanks> {
+  const all = await collectAllGames(null);
+  return {
+    overall: rankOf(all, uid),
+    classRank: classId ? rankOf(all.filter((g) => g.classId === classId), uid) : null,
+  };
 }
 
 export { isFirebaseConfigured };

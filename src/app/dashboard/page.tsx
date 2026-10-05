@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { usePlayer } from "@/components/PlayerProvider";
 import {
   getMyGames,
-  getMyRank,
   getPlayer,
+  getRanks,
   type GameRecord,
   type PlayerAggregate,
 } from "@/lib/records";
@@ -29,15 +29,14 @@ export default function DashboardPage() {
     Promise.all([
       getPlayer(uid),
       getMyGames(uid, 10),
-      getMyRank(uid, null), // 전체 순위
-      classId ? getMyRank(uid, classId) : Promise.resolve(null), // 우리 반 순위
+      getRanks(uid, classId), // 전체·반 순위를 한 번의 조회로 계산
     ])
-      .then(([p, g, overall, cls]) => {
+      .then(([p, g, ranks]) => {
         if (!active) return;
         setPlayer(p);
         setGames(g);
-        setOverallRank(overall);
-        setClassRank(cls);
+        setOverallRank(ranks.overall);
+        setClassRank(ranks.classRank);
       })
       .finally(() => active && setLoading(false));
     return () => {
