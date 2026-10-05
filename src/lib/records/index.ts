@@ -84,8 +84,9 @@ export async function saveGame(input: SaveGameInput): Promise<SaveResult> {
 
 /**
  * 로컬 대기 큐에 보관된 기록을 Firestore 로 재전송한다.
- * - 성공한 항목만 큐에서 제거하며, 동일 ID 를 재사용해 중복 생성되지 않는다.
- * - 원래 플레이 시각(playedAt)을 보존해 전송한다.
+ * - 각 항목은 "전송 성공 즉시" 큐에서 제거한다. (전송은 되었는데 큐에 남아 있는 사이
+ *   동시 실행된 읽기가 원격 집계 + 대기 기록을 이중 계산하는 것을 방지)
+ * - 동일 ID 를 재사용해 중복 생성되지 않으며, 원래 플레이 시각(playedAt)을 보존한다.
  * - 익명 인증 실패로 `local-*` uid 로 저장되었던 기록은, 인증이 회복돼 실제 uid 가
  *   주어지면 그 uid 로 재바인딩해 전송한다(보안 규칙의 uid 일치 요건 충족).
  */
@@ -97,21 +98,21 @@ export async function flushPending(authUid?: string): Promise<number> {
 
   const rebindUid = isRealUid(authUid) ? authUid : null;
 
-  const flushed: string[] = [];
+  let flushedCount = 0;
   for (const p of pending) {
     const uid = rebindUid ?? p.uid;
     // 재바인딩할 실제 uid 가 없고 저장된 uid 도 local-* 라면 아직 전송 불가 — 보류
     if (!isRealUid(uid)) break;
     try {
       await fsSaveGame(db, { ...pendingToInput(p), uid }, p.id, p.playedAt);
-      flushed.push(p.id);
+      localRemovePending([p.id]); // 성공 즉시 제거 → 이중 계산 창 제거
+      flushedCount += 1;
     } catch {
       // 하나라도 실패하면 이후 항목은 다음 기회에 재시도
       break;
     }
   }
-  localRemovePending(flushed);
-  return flushed.length;
+  return flushedCount;
 }
 
 function pendingToInput(p: PendingGame): SaveGameInput {

@@ -170,27 +170,29 @@ export async function fsGetMyGames(
 }
 
 /**
- * 교사용 통계를 위해 games 컬렉션 전체를 playedAt 내림차순으로 페이지네이션하여 가져온다.
- * (점수순 상위 N개만 가져오면 통계가 왜곡되므로 시간순으로 모두 수집한다.)
- * 폭주 방지를 위한 안전 상한(safetyCap)을 둔다.
+ * games 컬렉션 "전체"를 playedAt 내림차순으로 페이지네이션하여 모두 가져온다.
+ * (점수순 상위 N개만 가져오면 통계·순위가 왜곡되므로 시간순으로 전부 수집한다.)
+ *
+ * 인위적 상한을 두지 않고, 마지막 페이지(요청 개수 미만이 돌아오는 시점)까지
+ * 커서를 전진시켜 컬렉션을 소진한다. 커서가 매 페이지 전진하므로 반드시 종료된다.
+ * 매우 큰 데이터셋에서는 서버측 집계가 더 적합하지만, 수업 규모에서는 전체 조회로 충분하다.
  */
 export async function fsGetAllGames(
   db: Firestore,
   pageSize = 500,
-  safetyCap = 20000,
 ): Promise<GameRecord[]> {
   const base = collection(db, GAMES);
   const out: GameRecord[] = [];
   let cursor: QueryDocumentSnapshot<DocumentData> | null = null;
 
-  while (out.length < safetyCap) {
+  for (;;) {
     const q: Query<DocumentData> = cursor
       ? query(base, orderBy("playedAt", "desc"), startAfter(cursor), fsLimit(pageSize))
       : query(base, orderBy("playedAt", "desc"), fsLimit(pageSize));
     const snap: QuerySnapshot<DocumentData> = await getDocs(q);
     if (snap.empty) break;
     for (const d of snap.docs) out.push(mapGame(d.id, d.data()));
-    if (snap.docs.length < pageSize) break;
+    if (snap.docs.length < pageSize) break; // 마지막 페이지 → 컬렉션 소진
     cursor = snap.docs[snap.docs.length - 1];
   }
   return out;
