@@ -262,7 +262,13 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-width: 118px;
+  /* 고정 너비 — 패널 내용이 컬럼(및 넥스트 미리보기) 너비를 늘리지 않도록 한다 */
+  width: 132px;
+  flex: none;
+}
+
+.side-col > * {
+  min-width: 0;
 }
 
 .panel-box {
@@ -576,15 +582,14 @@ button:disabled {
 
 .shortcut-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
 }
 
 .shortcut-row dt {
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   color: var(--text-muted);
-  white-space: nowrap;
 }
 
 .shortcut-row dd {
@@ -593,7 +598,6 @@ button:disabled {
   align-items: center;
   gap: 0.15rem;
   flex-wrap: wrap;
-  justify-content: flex-end;
 }
 
 .shortcut-row kbd {
@@ -867,6 +871,7 @@ tbody tr.me {
   }
 
   .side-col {
+    width: auto;
     min-width: 72px;
   }
 
