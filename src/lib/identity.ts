@@ -38,6 +38,15 @@ function safeSet(key: string, value: string): void {
   }
 }
 
+function safeRemove(key: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    /* 무시 */
+  }
+}
+
 /** Firebase 를 못 쓸 때 사용할 로컬 고유 ID (기기별) */
 export function getOrCreateLocalUid(): string {
   const existing = safeGet(STORAGE_KEYS.localUid);
@@ -71,4 +80,18 @@ export function saveProfile(profile: PlayerProfile): void {
     STORAGE_KEYS.studentNo,
     profile.studentNo === null ? "" : String(profile.studentNo),
   );
+}
+
+/** 저장된 프로필(학번·성명·반·번호)을 지운다. (학생 전환용) */
+export function clearProfile(): void {
+  safeRemove(STORAGE_KEYS.name);
+  safeRemove(STORAGE_KEYS.studentId);
+  safeRemove(STORAGE_KEYS.classId);
+  safeRemove(STORAGE_KEYS.studentNo);
+}
+
+/** 로컬 UID 를 새로 발급한다(기존 것 폐기). 로컬 전용 모드에서 기록이 섞이지 않도록. */
+export function rotateLocalUid(): string {
+  safeRemove(STORAGE_KEYS.localUid);
+  return getOrCreateLocalUid();
 }

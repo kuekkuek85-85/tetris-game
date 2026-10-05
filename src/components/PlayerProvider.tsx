@@ -9,12 +9,14 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ensureAnonymousUid } from "@/lib/firebase/auth";
+import { ensureAnonymousUid, signOutAnonymous } from "@/lib/firebase/auth";
 import { isFirebaseConfigured } from "@/lib/firebase/config";
 import { flushPending } from "@/lib/records";
 import { localRebindPending } from "@/lib/records/localStore";
 import {
+  clearProfile,
   loadProfile,
+  rotateLocalUid,
   saveProfile as persistProfile,
   type PlayerProfile,
 } from "@/lib/identity";
@@ -25,6 +27,8 @@ interface PlayerContextValue {
   authReady: boolean;
   firebaseEnabled: boolean;
   setProfile: (profile: PlayerProfile) => void;
+  /** 학생 전환: 프로필을 지우고 새 익명/로컬 UID 를 발급한다. */
+  switchStudent: () => Promise<void>;
 }
 
 const PlayerContext = createContext<PlayerContextValue | null>(null);
@@ -62,6 +66,18 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setProfileState(next);
   }, []);
 
+  const switchStudent = useCallback(async () => {
+    // 1) 프로필 제거 → 시작 화면(StartForm)으로 돌아간다
+    clearProfile();
+    setProfileState(null);
+    setUid(null);
+    // 2) 익명 로그아웃 + 로컬 UID 교체 → 다음 학생이 새 신원으로 시작
+    await signOutAnonymous();
+    rotateLocalUid();
+    const freshUid = await ensureAnonymousUid();
+    setUid(freshUid);
+  }, []);
+
   const value = useMemo<PlayerContextValue>(
     () => ({
       uid,
@@ -69,8 +85,9 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
       authReady,
       firebaseEnabled: isFirebaseConfigured(),
       setProfile,
+      switchStudent,
     }),
-    [uid, profile, authReady, setProfile],
+    [uid, profile, authReady, setProfile, switchStudent],
   );
 
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
