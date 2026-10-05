@@ -1,5 +1,8 @@
 import {
   BOARD_WIDTH,
+  BOMB_ROWS,
+  ITEM_GAUGE_MAX,
+  ITEM_MAX_HELD,
   KICKS_I,
   KICKS_JLSTZ,
   NEXT_COUNT,
@@ -13,9 +16,12 @@ import type {
   Board,
   Cell,
   GameState,
+  ItemType,
   PieceType,
   Rotation,
 } from "./types";
+
+const ITEM_POOL: ItemType[] = ["bomb", "clearLine"];
 
 /** 빈 보드를 만든다 (숨은 버퍼 포함). */
 export function createEmptyBoard(): Board {
@@ -65,6 +71,8 @@ export function createInitialState(rng: Rng = Math.random): GameState {
     lines: 0,
     level: 1,
     elapsedMs: 0,
+    itemGauge: 0,
+    items: [],
   };
 }
 
@@ -182,6 +190,14 @@ export function lockPiece(state: GameState, rng: Rng = Math.random): GameState {
   const nextLevel = levelForLines(totalLines);
   const gainedScore = lineClearScore(clearedLines, state.level);
 
+  // 아이템 게이지 충전 — 가득 찰 때마다 아이템 1개 획득(보유 상한까지)
+  const { gauge, items } = chargeItemGauge(
+    state.itemGauge,
+    state.items,
+    clearedLines,
+    rng,
+  );
+
   const afterClear: GameState = {
     ...state,
     board: remaining,
@@ -189,6 +205,8 @@ export function lockPiece(state: GameState, rng: Rng = Math.random): GameState {
     level: nextLevel,
     score: state.score + gainedScore,
     holdUsed: false,
+    itemGauge: gauge,
+    items,
   };
 
   // 4) 다음 블록 스폰 — 스폰 자리에 공간이 없으면 게임오버
@@ -302,4 +320,96 @@ export function getGhostPiece(state: GameState): ActivePiece | null {
   if (!state.active) return null;
   const distance = dropDistance(state.board, state.active);
   return { ...state.active, y: state.active.y + distance };
+}
+
+/* ===== 아이템 ===== */
+
+/** 빈 줄(모두 0)을 하나 만든다. */
+function emptyRow(): Cell[] {
+  return Array.from({ length: BOARD_WIDTH }, () => 0 as Cell);
+}
+
+/**
+ * 게이지를 clearedLines 만큼 충전하고, ITEM_GAUGE_MAX 를 넘길 때마다 아이템을 1개씩 획득한다.
+ * 보유 상한(ITEM_MAX_HELD)을 넘으면 더 획득하지 않고 게이지는 상한에서 멈춘다.
+ */
+export function chargeItemGauge(
+  prevGauge: number,
+  prevItems: ItemType[],
+  clearedLines: number,
+  rng: Rng = Math.random,
+): { gauge: number; items: ItemType[] } {
+  if (clearedLines <= 0) return { gauge: prevGauge, items: prevItems };
+  let gauge = prevGauge + clearedLines;
+  const items = [...prevItems];
+  while (gauge >= ITEM_GAUGE_MAX && items.length < ITEM_MAX_HELD) {
+    gauge -= ITEM_GAUGE_MAX;
+    items.push(ITEM_POOL[Math.floor(rng() * ITEM_POOL.length)]);
+  }
+  // 보유 상한에 도달했으면 게이지는 가득 찬 상태로 유지(상한)
+  if (items.length >= ITEM_MAX_HELD) {
+    gauge = Math.min(gauge, ITEM_GAUGE_MAX);
+  }
+  return { gauge, items };
+}
+
+/** 폭탄: 보드의 "보이는" 바닥 BOMB_ROWS 줄을 제거하고 위를 아래로 내린다. */
+export function applyBomb(board: Board): Board {
+  const next = board.slice(0, board.length - BOMB_ROWS);
+  const removed: Cell[][] = [];
+  for (let i = 0; i < BOMB_ROWS; i++) removed.push(emptyRow());
+  return [...removed, ...next];
+}
+
+/** 가장 많이 채워진 줄(완전히 빈 줄 제외) 하나를 제거하고 위를 아래로 내린다. */
+export function applyClearLine(board: Board): Board {
+  let targetIndex = -1;
+  let maxFilled = 0;
+  for (let y = 0; y < board.length; y++) {
+    const filled = board[y].reduce<number>((n, c) => (c !== 0 ? n + 1 : n), 0);
+    if (filled > maxFilled) {
+      maxFilled = filled;
+      targetIndex = y;
+    }
+  }
+  if (targetIndex < 0) return board; // 지울 블록이 없음
+  const next = board.filter((_, y) => y !== targetIndex);
+  next.unshift(emptyRow());
+  return next;
+}
+
+/**
+ * 지정한 슬롯의 아이템 1개를 사용한다. playing 상태에서만, 해당 슬롯에 아이템이 있을 때만 동작.
+ * (같은 종류 아이템이 여러 칸에 있을 수 있으므로 종류가 아닌 슬롯 인덱스로 소비한다.)
+ */
+export function consumeItem(state: GameState, slot: number): GameState {
+  if (state.phase !== "playing") return state;
+  const item = state.items[slot];
+  if (!item) return state;
+
+  const board = item === "bomb" ? applyBomb(state.board) : applyClearLine(state.board);
+  const items = [...state.items];
+  items.splice(slot, 1);
+
+  // 줄이 아래로 붕괴하면서 기존 보드 셀이 활성 블록 자리로 밀려 내려와 충돌할 수 있다.
+  // 이 재배치/ top-out 판정은 "아이템 붕괴가 실제로 활성 블록과 충돌을 만든 경우"에만 수행한다.
+  // (월킥 등으로 블록 일부가 보드 위 y<0 에 걸쳐 있는 합법적 상태는 그대로 두어야 한다.
+  //  그런 블록은 정상적으로 다시 내려올 수 있으므로 거짓 top-out 을 만들면 안 된다.)
+  let active = state.active;
+  if (active && collides(board, active)) {
+    // 충돌이 사라질 때까지 활성 블록을 위로 밀어 올려 유효한 위치를 찾는다.
+    let guard = 0;
+    while (collides(board, active) && guard < TOTAL_HEIGHT) {
+      active = { ...active, y: active.y - 1 };
+      guard += 1;
+    }
+    // 위로 밀어도 블록 일부가 보드 위(y<0)로 벗어나면 보드에 완전히 재진입할 수 없다.
+    // (붕괴 후 꼭대기까지 들어찬 경우) 이때는 손상 상태를 남기지 않도록 top-out 으로 처리한다.
+    const fullyOnBoard = getPieceCells(active).every(([, y]) => y >= 0);
+    if (collides(board, active) || !fullyOnBoard) {
+      return { ...state, board, items, active: null, phase: "gameover" };
+    }
+  }
+
+  return { ...state, board, items, active };
 }
