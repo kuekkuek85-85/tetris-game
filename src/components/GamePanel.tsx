@@ -220,6 +220,7 @@ export function GamePanel() {
               >
                 시작하기
               </button>
+              <ItemLegend />
               <KeyGuide />
             </Overlay>
           )}
@@ -283,6 +284,10 @@ export function GamePanel() {
                 <PiecePreview key={`${p}-${i}`} piece={p} />
               ))}
             </div>
+          </section>
+          <section className="panel-box shortcuts">
+            <h2 className="panel-title">단축키</h2>
+            <ShortcutGuide />
           </section>
         </aside>
       </div>
@@ -352,5 +357,60 @@ function KeyGuide() {
       <li>Shift/C 홀드 · P/Esc 일시정지</li>
       <li>1/2/3 아이템 사용 💣✂️🐢</li>
     </ul>
+  );
+}
+
+/** 시작 화면에 표시되는 아이템 종류 설명 */
+function ItemLegend() {
+  return (
+    <div className="item-legend">
+      <p className="item-legend-intro">
+        줄을 지우면 게이지가 차고, 가득 차면 아이템을 1개 얻어요 (최대 3개).
+      </p>
+      <ul>
+        {(Object.keys(ITEM_INFO) as Array<keyof typeof ITEM_INFO>).map((key) => {
+          const info = ITEM_INFO[key];
+          return (
+            <li key={key}>
+              <span className="item-legend-glyph" aria-hidden="true">
+                {info.glyph}
+              </span>
+              <span className="item-legend-label">{info.label}</span>
+              <span className="item-legend-hint">{info.hint}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/** 화면에 항상 표시되는 단축키 안내표 */
+function ShortcutGuide() {
+  const rows: Array<{ action: string; keys: string[] }> = [
+    { action: "이동", keys: ["←", "→"] },
+    { action: "회전", keys: ["↑", "X", "Z"] },
+    { action: "소프트 드롭", keys: ["↓"] },
+    { action: "하드 드롭", keys: ["Space"] },
+    { action: "홀드", keys: ["Shift", "C"] },
+    { action: "일시정지", keys: ["P", "Esc"] },
+    { action: "아이템 💣✂️🐢", keys: ["1", "2", "3"] },
+  ];
+  return (
+    <dl className="shortcut-list">
+      {rows.map(({ action, keys }) => (
+        <div key={action} className="shortcut-row">
+          <dt>{action}</dt>
+          <dd>
+            {keys.map((k, i) => (
+              <span key={k}>
+                {i > 0 && <span className="shortcut-sep">/</span>}
+                <kbd>{k}</kbd>
+              </span>
+            ))}
+          </dd>
+        </div>
+      ))}
+    </dl>
   );
 }

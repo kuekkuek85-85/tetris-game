@@ -262,7 +262,13 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  min-width: 118px;
+  /* 고정 너비 — 패널 내용이 컬럼(및 넥스트 미리보기) 너비를 늘리지 않도록 한다 */
+  width: 132px;
+  flex: none;
+}
+
+.side-col > * {
+  min-width: 0;
 }
 
 .panel-box {
@@ -520,6 +526,102 @@ button:disabled {
   line-height: 1.6;
 }
 
+/* ===== Item legend (시작 화면) ===== */
+.item-legend {
+  margin: 1rem 0 0;
+  text-align: left;
+}
+
+.item-legend-intro {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.item-legend ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.item-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.item-legend-glyph {
+  font-size: 1.1rem;
+  width: 1.5rem;
+  text-align: center;
+  flex: none;
+}
+
+.item-legend-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 4.2rem;
+}
+
+.item-legend-hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ===== Shortcut guide (항상 표시) ===== */
+.shortcut-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.shortcut-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+}
+
+.shortcut-row dt {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.shortcut-row dd {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+  flex-wrap: wrap;
+}
+
+.shortcut-row kbd {
+  display: inline-block;
+  min-width: 1.1rem;
+  padding: 0.05rem 0.35rem;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text);
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+}
+
+.shortcut-sep {
+  margin: 0 0.1rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
 /* ===== Touch controls ===== */
 .touch-controls {
   display: none;
@@ -769,6 +871,7 @@ tbody tr.me {
   }
 
   .side-col {
+    width: auto;
     min-width: 72px;
   }
 
@@ -782,6 +885,11 @@ tbody tr.me {
 
   .touch-controls {
     display: flex;
+  }
+
+  /* 좁은 화면에서는 터치 컨트롤을 쓰므로 키보드 단축키 표는 숨긴다 */
+  .panel-box.shortcuts {
+    display: none;
   }
 
   .class-meta {
