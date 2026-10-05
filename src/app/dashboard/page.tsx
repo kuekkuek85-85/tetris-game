@@ -5,8 +5,8 @@ import { useEffect, useState } from "react";
 import { usePlayer } from "@/components/PlayerProvider";
 import {
   getMyGames,
-  getMyRank,
   getPlayer,
+  getRanks,
   type GameRecord,
   type PlayerAggregate,
 } from "@/lib/records";
@@ -16,8 +16,11 @@ export default function DashboardPage() {
   const { uid, profile, authReady } = usePlayer();
   const [player, setPlayer] = useState<PlayerAggregate | null>(null);
   const [games, setGames] = useState<GameRecord[]>([]);
-  const [rank, setRank] = useState<number | null>(null);
+  const [overallRank, setOverallRank] = useState<number | null>(null);
+  const [classRank, setClassRank] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const classId = profile?.classId || null;
 
   useEffect(() => {
     if (!authReady || !uid) return;
@@ -26,19 +29,20 @@ export default function DashboardPage() {
     Promise.all([
       getPlayer(uid),
       getMyGames(uid, 10),
-      getMyRank(uid, profile?.classId || null),
+      getRanks(uid, classId), // 전체·반 순위를 한 번의 조회로 계산
     ])
-      .then(([p, g, r]) => {
+      .then(([p, g, ranks]) => {
         if (!active) return;
         setPlayer(p);
         setGames(g);
-        setRank(r);
+        setOverallRank(ranks.overall);
+        setClassRank(ranks.classRank);
       })
       .finally(() => active && setLoading(false));
     return () => {
       active = false;
     };
-  }, [authReady, uid, profile?.classId]);
+  }, [authReady, uid, classId]);
 
   if (!authReady || loading) {
     return <div className="centered-state"><p>불러오는 중…</p></div>;
@@ -47,7 +51,7 @@ export default function DashboardPage() {
   if (!profile) {
     return (
       <div className="centered-state">
-        <p>먼저 닉네임을 입력하고 게임을 시작해 주세요.</p>
+        <p>먼저 학번과 성명을 입력하고 게임을 시작해 주세요.</p>
         <Link className="primary-btn" href="/">게임으로 이동</Link>
       </div>
     );
@@ -58,9 +62,10 @@ export default function DashboardPage() {
       <header className="page-header">
         <h1>내 기록</h1>
         <p className="muted">
-          {profile.nickname}
-          {profile.classId ? ` · ${profile.classId}반` : ""}
+          {profile.name}
+          {profile.classId ? ` · ${profile.classId.replace("-", "학년 ")}반` : ""}
           {profile.studentNo != null ? ` ${profile.studentNo}번` : ""}
+          {` · 학번 ${profile.studentId}`}
         </p>
       </header>
 
@@ -76,10 +81,13 @@ export default function DashboardPage() {
             <StatCard label="총 플레이" value={`${player.playCount}판`} />
             <StatCard label="누적 라인" value={formatNumber(player.totalLines)} />
             <StatCard label="누적 시간" value={formatDuration(player.totalPlayMs)} />
-            <StatCard
-              label={profile.classId ? "우리 반 순위" : "전체 순위"}
-              value={rank ? `${rank}위` : "-"}
-            />
+            <StatCard label="전체 순위" value={overallRank ? `${overallRank}위` : "-"} />
+            {classId && (
+              <StatCard
+                label={`우리 반 순위 (${classId})`}
+                value={classRank ? `${classRank}위` : "-"}
+              />
+            )}
           </section>
 
           <section className="table-section">

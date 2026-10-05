@@ -85,6 +85,21 @@ button {
   color: #fff;
 }
 
+.nav-switch {
+  padding: 0.4rem 0.8rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.nav-switch:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
 .app-main {
   padding: 1.25rem;
   max-width: 1100px;

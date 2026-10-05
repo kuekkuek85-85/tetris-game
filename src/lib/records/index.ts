@@ -45,41 +45,55 @@ function isRealUid(uid: string | null | undefined): uid is string {
   return !!uid && !uid.startsWith("local-");
 }
 
+// 진행 중인 saveGame 수. 학생 전환을 "저장 완료 후"로 직렬화하기 위해 추적한다.
+// (저장 재시도가 끝나기 전에 로그아웃하면 그 재시도가 복구 불가한 이전 UID 로 기록을 남겨 유실됨)
+let inFlightSaves = 0;
+
+/** 아직 완료되지 않은 저장 작업이 있는지. (학생 전환 안전성 판단용) */
+export function hasInFlightSaves(): boolean {
+  return inFlightSaves > 0;
+}
+
 /**
  * 게임 기록 저장. Firestore 저장은 고정 게임 ID 로 최대 3회 지수 백오프 재시도(멱등).
  * 모두 실패하면 로컬 대기 큐에 보관(수업 중 데이터 유실 방지)하고, 이후 재전송을 시도한다.
  */
 export async function saveGame(input: SaveGameInput): Promise<SaveResult> {
-  const db = getDb();
-  if (!db) {
-    const { ok } = localSaveGame(input);
-    return { ok, fallback: true, error: ok ? undefined : "로컬 저장에 실패했습니다." };
-  }
+  inFlightSaves += 1;
+  try {
+    const db = getDb();
+    if (!db) {
+      const { ok } = localSaveGame(input);
+      return { ok, fallback: true, error: ok ? undefined : "로컬 저장에 실패했습니다." };
+    }
 
-  const gameId = genId();
-  const delays = [500, 1500, 3000];
-  let lastError = "";
-  for (let attempt = 0; attempt <= delays.length; attempt++) {
-    try {
-      await fsSaveGame(db, input, gameId);
-      // 저장 성공 시 밀려 있던 대기 기록도 현재 uid 로 재전송해 본다
-      void flushPending(input.uid);
-      return { ok: true, fallback: false };
-    } catch (err) {
-      lastError = err instanceof Error ? err.message : String(err);
-      if (attempt < delays.length) {
-        await sleep(delays[attempt]);
+    const gameId = genId();
+    const delays = [500, 1500, 3000];
+    let lastError = "";
+    for (let attempt = 0; attempt <= delays.length; attempt++) {
+      try {
+        await fsSaveGame(db, input, gameId);
+        // 저장 성공 시 밀려 있던 대기 기록도 현재 uid 로 재전송해 본다
+        void flushPending(input.uid);
+        return { ok: true, fallback: false };
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : String(err);
+        if (attempt < delays.length) {
+          await sleep(delays[attempt]);
+        }
       }
     }
-  }
 
-  // Firestore 저장 최종 실패 → 로컬 대기 큐 보관
-  const { ok } = localAddPending(input);
-  return {
-    ok,
-    fallback: true,
-    error: ok ? lastError : "서버·로컬 저장에 모두 실패했습니다.",
-  };
+    // Firestore 저장 최종 실패 → 로컬 대기 큐 보관
+    const { ok } = localAddPending(input);
+    return {
+      ok,
+      fallback: true,
+      error: ok ? lastError : "서버·로컬 저장에 모두 실패했습니다.",
+    };
+  } finally {
+    inFlightSaves -= 1;
+  }
 }
 
 /**
@@ -100,27 +114,40 @@ export async function flushPending(authUid?: string): Promise<number> {
 
   let flushedCount = 0;
   for (const p of pending) {
-    const uid = rebindUid ?? p.uid;
-    // 재바인딩할 실제 uid 가 없고 저장된 uid 도 local-* 라면 아직 전송 불가 — 보류
-    if (!isRealUid(uid)) break;
+    // local-* 레코드(아직 학생 미귀속)만 현재 인증 uid 로 재바인딩한다.
+    // 이미 실제 uid 에 귀속된 레코드는 그 uid 로만 전송(다른 학생 것일 수 있으므로 섞지 않음).
+    const uid = p.uid.startsWith("local-") && rebindUid ? rebindUid : p.uid;
+    // 아직 전송 불가한 경우는 보류하되, 뒤 항목은 계속 시도한다(큐 선두 blocking 방지).
+    //  - 실제 uid 가 아님(인증 전 local-*)
+    //  - 현재 세션 인증(rebindUid)과 다른 실제 uid → 이 세션에선 규칙상 쓸 수 없음
+    if (!isRealUid(uid)) continue;
+    if (rebindUid && uid !== rebindUid) continue;
     try {
       await fsSaveGame(db, { ...pendingToInput(p), uid }, p.id, p.playedAt);
       localRemovePending([p.id]); // 성공 즉시 제거 → 이중 계산 창 제거
       flushedCount += 1;
     } catch {
-      // 하나라도 실패하면 이후 항목은 다음 기회에 재시도
+      // 전송 자체 실패(네트워크 등)는 중단 — 다음 기회에 재시도
       break;
     }
   }
   return flushedCount;
 }
 
+/** 아직 서버로 전송되지 못한 대기 기록이 남아 있는지. (학생 전환 안전성 판단용) */
+export function hasPendingRecords(): boolean {
+  return localGetPending().length > 0;
+}
+
 function pendingToInput(p: PendingGame): SaveGameInput {
   return {
     uid: p.uid,
     nickname: p.nickname,
-    classId: p.classId,
-    studentNo: p.studentNo,
+    // 업그레이드 이전에 쌓인 레거시 대기 기록엔 studentId 가 없을 수 있다.
+    // undefined 가 그대로 Firestore 에 전달되면 쓰기가 거부되어 큐가 영구 적체되므로 기본값으로 정규화.
+    studentId: p.studentId ?? "",
+    classId: p.classId ?? "",
+    studentNo: p.studentNo ?? null,
     score: p.score,
     lines: p.lines,
     level: p.level,
@@ -209,8 +236,9 @@ function foldPendingIntoAggregate(
     remote ?? {
       uid,
       nickname: mine[0].nickname,
-      classId: mine[0].classId,
-      studentNo: mine[0].studentNo,
+      studentId: mine[0].studentId ?? "",
+      classId: mine[0].classId ?? "",
+      studentNo: mine[0].studentNo ?? null,
       bestScore: 0,
       playCount: 0,
       totalLines: 0,
@@ -264,17 +292,31 @@ export async function getAllGames(): Promise<GameRecord[]> {
   return games.slice().sort((a, b) => b.playedAt - a.playedAt);
 }
 
-/**
- * 내 순위: games 를 플레이어별 최고 점수로 축약한 뒤 1-based 순위를 구한다.
- * (리더보드 표시와 동일한 기준이라 화면 순위와 일치한다.)
- */
-export async function getMyRank(
-  uid: string,
-  classId: string | null,
-): Promise<number | null> {
-  const ranked = bestPerUid(await collectAllGames(classId));
+/** 주어진 games 집합에서 uid 의 1-based 순위(없으면 null). best-per-uid 기준. */
+function rankOf(games: GameRecord[], uid: string): number | null {
+  const ranked = bestPerUid(games);
   const idx = ranked.findIndex((g) => g.uid === uid);
   return idx >= 0 ? idx + 1 : null;
+}
+
+export interface MyRanks {
+  overall: number | null;
+  classRank: number | null;
+}
+
+/**
+ * 전체 순위와 우리 반 순위를 한 번의 games 조회로 함께 계산한다.
+ * (전체를 한 번만 읽고 반 순위는 메모리에서 필터링 — 중복 조회/비용 방지)
+ */
+export async function getRanks(
+  uid: string,
+  classId: string | null,
+): Promise<MyRanks> {
+  const all = await collectAllGames(null);
+  return {
+    overall: rankOf(all, uid),
+    classRank: classId ? rankOf(all.filter((g) => g.classId === classId), uid) : null,
+  };
 }
 
 export { isFirebaseConfigured };
