@@ -7,7 +7,7 @@ import { PiecePreview } from "./PiecePreview";
 import { TouchControls } from "./TouchControls";
 import { usePlayer } from "./PlayerProvider";
 import { useTetris, type TetrisStats } from "@/hooks/useTetris";
-import { NEXT_COUNT } from "@/lib/tetris/constants";
+import { ITEM_GAUGE_MAX, ITEM_INFO, NEXT_COUNT } from "@/lib/tetris/constants";
 import { saveGame, type SaveResult } from "@/lib/records";
 import { formatDuration, formatNumber } from "@/lib/format";
 
@@ -64,6 +64,7 @@ export function GamePanel() {
     hardDropNow,
     hold,
     pause,
+    activateItem,
   } = useTetris({ onGameOver: handleGameOver });
 
   // 게임 진행 여부를 Provider 에 보고 (전환 가능 여부 판단용)
@@ -156,6 +157,44 @@ export function GamePanel() {
                 <dd>{formatDuration(state.elapsedMs)}</dd>
               </div>
             </dl>
+          </section>
+          <section className="panel-box items">
+            <h2 className="panel-title">아이템</h2>
+            <div
+              className="item-gauge"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={ITEM_GAUGE_MAX}
+              aria-valuenow={state.itemGauge}
+              aria-label="아이템 게이지"
+            >
+              <span
+                className="item-gauge-fill"
+                style={{ width: `${(state.itemGauge / ITEM_GAUGE_MAX) * 100}%` }}
+              />
+            </div>
+            <div className="item-slots">
+              {[0, 1, 2].map((slot) => {
+                const item = state.items[slot];
+                return (
+                  <button
+                    key={slot}
+                    type="button"
+                    className={`item-slot${item ? " ready" : ""}`}
+                    onClick={() => activateItem(slot)}
+                    disabled={!item || state.phase !== "playing"}
+                    title={
+                      item
+                        ? `${ITEM_INFO[item].label} — ${ITEM_INFO[item].hint}${slot < 2 ? ` (키 ${slot + 1})` : ""}`
+                        : "빈 슬롯"
+                    }
+                    aria-label={item ? ITEM_INFO[item].label : "빈 슬롯"}
+                  >
+                    {item ? ITEM_INFO[item].glyph : "·"}
+                  </button>
+                );
+              })}
+            </div>
           </section>
         </aside>
 
@@ -306,6 +345,7 @@ function KeyGuide() {
       <li>← → 이동 · ↑ 회전</li>
       <li>↓ 소프트드롭 · Space 하드드롭</li>
       <li>Shift/C 홀드 · P/Esc 일시정지</li>
+      <li>1/2 아이템 사용 💣✂️</li>
     </ul>
   );
 }

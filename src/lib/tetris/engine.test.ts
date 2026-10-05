@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   BOARD_WIDTH,
+  ITEM_GAUGE_MAX,
+  ITEM_MAX_HELD,
   LINES_PER_LEVEL,
   TOTAL_HEIGHT,
 } from "./constants";
 import {
+  applyBomb,
+  applyClearLine,
+  chargeItemGauge,
   collides,
   createEmptyBoard,
   createInitialState,
@@ -16,10 +21,11 @@ import {
   startGame,
   tryMove,
   tryRotate,
+  consumeItem,
 } from "./engine";
 import { createBag, refillQueue } from "./bag";
 import { levelForLines, lineClearScore } from "./scoring";
-import type { ActivePiece, Board, Cell, PieceType } from "./types";
+import type { ActivePiece, Board, Cell, ItemType, PieceType } from "./types";
 
 /** 결정적 테스트를 위한 간단한 시드 RNG */
 function seededRng(seed: number) {
@@ -178,5 +184,63 @@ describe("hold", () => {
     expect(held.phase).toBe("gameover");
     expect(held.active).toBeNull();
     expect(held.hold).toBe("T"); // 보관은 반영됨
+  });
+});
+
+describe("items", () => {
+  it("게이지는 지운 라인만큼 충전되고, 가득 차면 아이템을 획득한다", () => {
+    // 한 번에 ITEM_GAUGE_MAX 를 채우면 아이템 1개 획득 + 게이지 0
+    const r1 = chargeItemGauge(0, [], ITEM_GAUGE_MAX, seededRng(1));
+    expect(r1.items).toHaveLength(1);
+    expect(r1.gauge).toBe(0);
+
+    // 임계 미만이면 아이템 없이 게이지만 증가
+    const r2 = chargeItemGauge(0, [], 2, seededRng(1));
+    expect(r2.items).toHaveLength(0);
+    expect(r2.gauge).toBe(2);
+  });
+
+  it("보유 상한을 넘으면 더 획득하지 않는다", () => {
+    const full: ItemType[] = Array.from({ length: ITEM_MAX_HELD }, () => "bomb");
+    const r = chargeItemGauge(0, full, ITEM_GAUGE_MAX * 5, seededRng(1));
+    expect(r.items).toHaveLength(ITEM_MAX_HELD);
+    expect(r.gauge).toBeLessThanOrEqual(ITEM_GAUGE_MAX);
+  });
+
+  it("폭탄은 바닥 2줄을 제거하고 높이를 유지한다", () => {
+    const board = createEmptyBoard();
+    const bottom = TOTAL_HEIGHT - 1;
+    for (let x = 0; x < BOARD_WIDTH; x++) {
+      board[bottom][x] = "I" as PieceType;
+      board[bottom - 1][x] = "O" as PieceType;
+      board[bottom - 2][x] = "T" as PieceType;
+    }
+    const after = applyBomb(board);
+    expect(after).toHaveLength(TOTAL_HEIGHT);
+    // 아래 2줄(I, O)은 사라지고, T 줄이 맨 아래로 내려온다
+    expect(after[bottom].every((c) => c === "T")).toBe(true);
+    expect(after[bottom - 1].every((c) => c === 0)).toBe(true);
+  });
+
+  it("라인 소거는 가장 많이 채워진 줄을 제거한다", () => {
+    const board = createEmptyBoard();
+    const bottom = TOTAL_HEIGHT - 1;
+    // bottom: 10칸 중 9칸, bottom-1: 10칸 전부 → 가장 찬 줄은 bottom-1
+    for (let x = 0; x < BOARD_WIDTH; x++) board[bottom - 1][x] = "I" as PieceType;
+    for (let x = 0; x < BOARD_WIDTH - 1; x++) board[bottom][x] = "O" as PieceType;
+    const after = applyClearLine(board);
+    expect(after).toHaveLength(TOTAL_HEIGHT);
+    // 가득 찼던 줄(I)이 사라졌으므로 보드에 I 가 없어야 한다
+    expect(after.some((row) => row.some((c) => c === "I"))).toBe(false);
+  });
+
+  it("consumeItem 은 보유한 아이템만 소비한다", () => {
+    const base = createInitialState(seededRng(2));
+    const state = { ...base, phase: "playing" as const, items: ["bomb"] as ItemType[] };
+    const used = consumeItem(state, "bomb");
+    expect(used.items).toHaveLength(0);
+    // 보유하지 않은 아이템은 변화 없음
+    const noop = consumeItem(used, "clearLine");
+    expect(noop).toBe(used);
   });
 });

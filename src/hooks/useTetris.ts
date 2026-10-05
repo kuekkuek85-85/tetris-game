@@ -12,8 +12,9 @@ import {
   togglePause,
   tryMove,
   tryRotate,
+  consumeItem,
 } from "@/lib/tetris/engine";
-import type { GameState } from "@/lib/tetris/types";
+import type { GameState, ItemType } from "@/lib/tetris/types";
 
 export interface TetrisStats {
   score: number;
@@ -37,6 +38,8 @@ export interface UseTetrisResult {
   hardDropNow: () => void;
   hold: () => void;
   pause: () => void;
+  /** 보유한 아이템을 사용 (슬롯 순서대로 1/2번) */
+  activateItem: (slot: number) => void;
 }
 
 /** 자동 반복(DAS) 간격 */
@@ -171,6 +174,14 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
     update(togglePause(stateRef.current));
   }, [update]);
 
+  const activateItem = useCallback(
+    (slot: number) => {
+      const item: ItemType | undefined = stateRef.current.items[slot];
+      if (item) update(consumeItem(stateRef.current, item));
+    },
+    [update],
+  );
+
   // 키보드 조작 (PRD 조작표)
   useEffect(() => {
     const repeatTimers: Record<string, ReturnType<typeof setInterval>> = {};
@@ -242,6 +253,14 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
           e.preventDefault();
           if (!e.repeat) pause();
           break;
+        case "1":
+          e.preventDefault();
+          if (!e.repeat) activateItem(0);
+          break;
+        case "2":
+          e.preventDefault();
+          if (!e.repeat) activateItem(1);
+          break;
         default:
           break;
       }
@@ -279,7 +298,17 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
       Object.values(delayTimers).forEach(clearTimeout);
       Object.values(repeatTimers).forEach(clearInterval);
     };
-  }, [moveLeft, moveRight, softDropStep, rotateCW, rotateCCW, hardDropNow, hold, pause]);
+  }, [
+    moveLeft,
+    moveRight,
+    softDropStep,
+    rotateCW,
+    rotateCCW,
+    hardDropNow,
+    hold,
+    pause,
+    activateItem,
+  ]);
 
   return {
     state,
@@ -292,5 +321,6 @@ export function useTetris(options: UseTetrisOptions = {}): UseTetrisResult {
     hardDropNow,
     hold,
     pause,
+    activateItem,
   };
 }

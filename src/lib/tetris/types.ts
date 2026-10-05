@@ -24,6 +24,9 @@ export interface ActivePiece {
 
 export type GamePhase = "ready" | "playing" | "paused" | "gameover";
 
+/** 사용 가능한 아이템 종류 */
+export type ItemType = "bomb" | "clearLine";
+
 export interface GameState {
   board: Board;
   active: ActivePiece | null;
@@ -40,6 +43,10 @@ export interface GameState {
   level: number;
   /** 누적 경과 시간(ms) — 일시정지 시간은 제외 */
   elapsedMs: number;
+  /** 아이템 게이지(0~ITEM_GAUGE_MAX). 라인 클리어로 충전되고 가득 차면 아이템 획득 */
+  itemGauge: number;
+  /** 보유 중인 아이템들 (최대 ITEM_MAX_HELD) */
+  items: ItemType[];
 }
 
 /** 라인 클리어 결과 요약 (점수 계산용) */

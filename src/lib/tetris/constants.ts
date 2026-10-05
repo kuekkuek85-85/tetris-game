@@ -123,4 +123,20 @@ export const NEXT_COUNT = 5;
 /** 레벨 상승에 필요한 라인 수 */
 export const LINES_PER_LEVEL = 10;
 
+/** 아이템 게이지가 가득 차는 값(지운 라인 누적). 도달 시 아이템 1개 획득 */
+export const ITEM_GAUGE_MAX = 8;
+/** 동시에 보유할 수 있는 아이템 최대 수 */
+export const ITEM_MAX_HELD = 3;
+/** 폭탄이 제거하는 바닥 줄 수 */
+export const BOMB_ROWS = 2;
+
+/** 아이템 표시 정보 */
+export const ITEM_INFO: Record<
+  import("./types").ItemType,
+  { label: string; glyph: string; hint: string }
+> = {
+  bomb: { label: "폭탄", glyph: "💣", hint: "바닥 2줄 제거" },
+  clearLine: { label: "라인 소거", glyph: "✂️", hint: "가장 찬 줄 제거" },
+};
+
 export const ROTATIONS: Rotation[] = [0, 1, 2, 3];
